@@ -14,4 +14,4 @@ Future plans:
 1. Write testing module which tells you the performance of each step (basis construction, matrix construction, etc...)
 2. 
 3. Integrate with Vanderbilt's pytb so that anyone can make a HK model out of any non-interacting model! The challenge would be to find an efficient way to express all the possible HK terms, but should be OK!
-4. (Speculative) Integrate with py
+4. (Speculative) Integrate with Bilbao server for symmetry analysis.
