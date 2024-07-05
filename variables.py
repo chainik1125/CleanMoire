@@ -17,11 +17,11 @@ phi=2*np.pi/3
 center='K'
 shells_used=2
 kpoints=3
-particle_no=2
+particle_no=1
 
 #Bernevig params
-t=v=5.944
-w1=0.11#0.11
+v=5.944#t=v=5.944?
+w1=0#0.11
 w0=0.7*w1
 Kmag=1.703
 UHK_N_p0t0p0px=float(sys.argv[3])
@@ -148,3 +148,4 @@ colors={1:'black',2:'darkorange',3:'gold',4:'darkgreen',5:'lime',6:'blue',7:'cor
 
 #make_templates
 testpdd={'k':4,'sublattice':2,'spin':2}
+

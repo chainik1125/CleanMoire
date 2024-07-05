@@ -146,6 +146,8 @@ class saved_template_matrix():
         self.variable_factors=variable_factors #i.e if you divide the variable by 2...
         self.variable_functions=variable_functions
         self.final_matrix_description=final_matrix_description
+        self.parameterdic=None
+        self.term=None
         
     def form_matrix(self):
         #The idea here is that this function will allow me to construct a matrix for arbitrary parameters once I have the template matrix saved
@@ -1571,6 +1573,9 @@ def make_matrices(state_list,pauli_dic,kfunction,variable_names,variable_factors
     else:
         matrix=tpp(state_list=state_list,pauli_dic=pauli_dic,prefactor=1)
     matrix_object=saved_template_matrix(matrix=matrix,kfunction=kfunction,variable_functions=variable_functions,variable_names=variable_names,variable_factors=variable_factors,final_matrix_description=final_matrix_description)
+    #for saving
+    parameterdic={'particles':particle_no,'shells':shells_used,'center':center,'nonlayer':testnonlayer}#angle shouldn't matter
+
     return matrix_object
 
 def make_matrices_U(state_list,type,pdic_n,U,final_matrix_description):
@@ -1663,8 +1668,7 @@ def test_matrices_against_diag(matrix_dir,target_terms):
     
     return None
 
-
-#This block of code probably more properly belongs in variables
+#Hamiltonian terms
 tqs=[np.array([-1,-1]),np.array([1,0]),np.array([0,1])]
 shell_basis=generate_shell_basis_gamma(shell_count=shells_used,q_vecs=tqs,number_of_particles=particle_no,nonlayer=testnonlayer,center=center)
 print(f'Number of basis states {len(shell_basis)}')
@@ -1697,21 +1701,15 @@ term_list_dic={'kx_matrix':(linear_terms_kx_save,'kx','nonint'),
                 'HK_rot':([[{0:p0,1:t0,2:p0,3:p0}]],'HK_rot','HK_rot'),#Note that the term list in rot is inert.
                 'HK_taux':([[{0:p0,1:t0,2:px,3:p0}]],'HK_N_taux','HK_N')}
 
-def construct_templates(dir_path,term_list_dic,term_number,make_all=True):
+
+
+def construct_templates(dir_path,term_list_dic,term_number,make_all=True,make_int=True):
     k0=B#shouldn't matter
     #dir_path=f'{particle_no}particles_{shells_used}shells_center{center}_matrices_new/kindmatrices_particles{particle_no}_shells{shells_used}_center{center}'
     #dir_path=f'UHK_N_taux_matrix_particles{particle_no}_shells{shells_used}_center{center}'
     #print(dir_path)
     # for the cluster
     print('start make')
-    term_counts=[(len(term_list_dic[key][0]),key) for key in term_list_dic.keys()]
-    counts=[term_counts[i][0] for i in range(len(term_counts))]
-    sumcounts=np.array([np.sum(np.array(counts[:i])) for i in range(len(counts))])
-    sumcounts=sumcounts-(term_number-1)
-    print(sumcounts)
-    termindex=np.max(np.where((sumcounts+np.abs(sumcounts))==0)[0])
-    termkey=term_counts[termindex][1]
-    termno=int(np.abs(sumcounts[termindex]))
     
     print(f'make all {make_all}')
     
@@ -1719,8 +1717,19 @@ def construct_templates(dir_path,term_list_dic,term_number,make_all=True):
         for term_key in term_list_dic.keys():
             make_each_matrix(term_list=term_list_dic[term_key][0],state_list=shell_basis,dirname=f'{dir_path}/{term_list_dic[term_key][1]}',matrix_name=term_list_dic[term_key][1],type=term_list_dic[term_key][2],term_number=None)
     else:
-        print('right thing')
+        #term matching
+        term_counts=[(len(term_list_dic[key][0]),key) for key in term_list_dic.keys()]
+        counts=[term_counts[i][0] for i in range(len(term_counts))]
+        sumcounts=np.array([np.sum(np.array(counts[:i])) for i in range(len(counts))])
+        sumcounts=sumcounts-(term_number-1)
+        print(sumcounts)
+        termindex=np.max(np.where((sumcounts+np.abs(sumcounts))==0)[0])
+        termkey=term_counts[termindex][1]
+        termno=int(np.abs(sumcounts[termindex]))
+        #end term matching
         make_each_matrix(term_list=[term_list_dic[termkey][0][termno]],state_list=shell_basis,dirname=f'{dir_path}/{term_list_dic[termkey][1]}',matrix_name=term_list_dic[termkey][1],type=term_list_dic[termkey][2],term_number=termno)
+    
+
 
 def check_template_exists():
     return None
