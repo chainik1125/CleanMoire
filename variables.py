@@ -1,7 +1,30 @@
 import numpy as np
-
 import sys
+import yaml
+import argparse
 
+#sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire')
+
+with open('default_config.yaml', 'r') as file:
+    config = yaml.safe_load(file)
+
+# This allows you to modify any of the yaml configs from the command line.
+parser = argparse.ArgumentParser(description="Update YAML configuration values.")
+for key in config:
+    parser.add_argument(f'--{key}', type=str, help=f'Override value for {key}')
+
+args = parser.parse_args()
+
+for key, value in vars(args).items():
+    if value is not None:
+        config[key] = value
+
+#import all args
+thetadeg=float(config['thetadeg'])
+UHK_N_p0t0p0px=float(config['Uorb'])
+UHK_rot=float(config['Urot'])
+UHK_N_p0t0pxp0=float(config['Utau'])
+particle_no=int(config['particles'])
 
 
 # t=1
@@ -11,26 +34,26 @@ import sys
 # w1=2*t
 dof=4
 testpdd={'k':4,'sublattice':2,'spin':2}
-thetadeg=float(sys.argv[2])
+thetadeg=thetadeg#float(sys.argv[2])
 theta=(np.pi/180)*thetadeg
 phi=2*np.pi/3
 center='K'
 shells_used=2
 kpoints=3
-particle_no=1
+particle_no=particle_no
 
 #Bernevig params
 v=5.944#t=v=5.944?
-w1=0#0.11
+w1=0.11#0.11
 w0=0.7*w1
 Kmag=1.703
-UHK_N_p0t0p0px=float(sys.argv[3])
+UHK_N_p0t0p0px=UHK_N_p0t0p0px
 Utau=0
 Uff=0
 Umu=0
 mu=(UHK_N_p0t0p0px+Utau)/2
-UHK_rot=float(sys.argv[4])
-UHK_N_p0t0pxp0=float(sys.argv[5])
+UHK_rot=UHK_rot
+UHK_N_p0t0pxp0=UHK_N_p0t0pxp0
 
 #Mcdonald param
 # t=1
@@ -148,4 +171,5 @@ colors={1:'black',2:'darkorange',3:'gold',4:'darkgreen',5:'lime',6:'blue',7:'cor
 
 #make_templates
 testpdd={'k':4,'sublattice':2,'spin':2}
+tqs=[np.array([-1,-1]),np.array([1,0]),np.array([0,1])]
 

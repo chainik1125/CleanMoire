@@ -1,9 +1,11 @@
+from variables import *
 import os
 from os import stat
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import itertools
-import sys
+
 from collections import Counter
 import pandas as pd
 import json
@@ -14,7 +16,7 @@ import matplotlib as mpl
 import matplotlib.cm as cm
 from scipy.interpolate import interp1d
 import time
-from variables import *
+
 import pickle
 import multiprocessing
 from multiprocessing import Pool
@@ -24,6 +26,10 @@ from tqdm import tqdm
 import inspect
 import gc
 import dill
+
+from base_classes import saved_template_matrix
+
+from base_functions import *
 
 
 #TO DO:
@@ -138,26 +144,26 @@ class basis():
 
 
         
-class saved_template_matrix():
-    def __init__(self,matrix,kfunction,variable_names,variable_factors,variable_functions,final_matrix_description):
-        self.matrix=matrix
-        self.kfunction=kfunction#the g0 the gkx and so on
-        self.variable_names=variable_names#The things that go inside the functions
-        self.variable_factors=variable_factors #i.e if you divide the variable by 2...
-        self.variable_functions=variable_functions
-        self.final_matrix_description=final_matrix_description
-        self.parameterdic=None
-        self.term=None
+# class saved_template_matrix():
+#     def __init__(self,matrix,kfunction,variable_names,variable_factors,variable_functions,final_matrix_description):
+#         self.matrix=matrix
+#         self.kfunction=kfunction#the g0 the gkx and so on
+#         self.variable_names=variable_names#The things that go inside the functions
+#         self.variable_factors=variable_factors #i.e if you divide the variable by 2...
+#         self.variable_functions=variable_functions
+#         self.final_matrix_description=final_matrix_description
+#         self.parameterdic=None
+#         self.term=None
         
-    def form_matrix(self):
-        #The idea here is that this function will allow me to construct a matrix for arbitrary parameters once I have the template matrix saved
-        coeff=1
-        for i in range(len(self.variable_functions)):
-            print(self.variable_names,[globals()[x] for x in self.variable_names],self.variable_factors)
-            arg=globals()[self.variable_names[i]]*self.variable_factors[i]
-            coeff=coeff*self.variable_functions[i](arg)
+#     def form_matrix(self):
+#         #The idea here is that this function will allow me to construct a matrix for arbitrary parameters once I have the template matrix saved
+#         coeff=1
+#         for i in range(len(self.variable_functions)):
+#             print(self.variable_names,[globals()[x] for x in self.variable_names],self.variable_factors)
+#             arg=globals()[self.variable_names[i]]*self.variable_factors[i]
+#             coeff=coeff*self.variable_functions[i](arg)
 
-        return self.matrix*coeff
+#         return self.matrix*coeff
     
 def swap(alist,index1,index2): #Have defined outside the class, maybe it would have been better for this to be a method.
     alist[index1],alist[index2]=alist[index2],alist[index1]
@@ -219,6 +225,14 @@ def p0(sigma):
 def pexpz(sigma):
     sigma_exp=(-1)**(sigma)
     return (np.exp(1j*np.pi*sigma_exp/4),sigma)
+
+def pexpz3(sigma):
+    sigma_exp=(-1)**(sigma)
+    return (np.exp(1j*2*np.pi*sigma_exp/3),sigma)
+
+def pexpz6(sigma):
+    sigma_exp=(-1)**(sigma)
+    return (np.exp(1j*2*np.pi*sigma_exp/6),sigma)
 
 def qkx(sigma):
     q=sigma[0]*qvecs[0]+sigma[1]*qvecs[1]
@@ -916,11 +930,11 @@ def diagtpp2(state_list,theta,layer_pauli_dic,prefactor):
 
 
 
-def inspect_elements(matrix,state_list,state_number):
-    if isinstance(state_number,np.ndarray)==False:
+def inspect_elements(matrix,state_list,state_array=None):
+    if isinstance(state_array,np.ndarray)==False:
         states_considered=state_list
     else:
-        states_considered=list(np.array(state_list)[state_number])
+        states_considered=list(np.array(state_list)[state_array])
 
     for i in states_considered:
         state_index=state_list.index(i)
@@ -941,7 +955,7 @@ def inspect_elements(matrix,state_list,state_number):
                 #theta2=get_theta(kvalue2)-theta0/2
                 #coeff1=np.cos(theta1)*v*np.sqrt(np.dot(kvalue1,kvalue1))
                 #coeff2=np.cos(theta2)*v*np.sqrt(np.dot(kvalue2,kvalue2))
-                print(f"Initial state: {eyepreservation(i)}, Output state: {eyepreservation(state_list[j])}, Amplitude {reswf[j]}")#, c1: {coeff1},c2:{coeff2}
+                print(f"Initial state: {eyepreservation(i)}, Output state: {eyepreservation(state_list[j])}, Amplitude {reswf[j]}, mod amp {np.abs(reswf[j])}")#, c1: {coeff1},c2:{coeff2}
         
         #exit()
         
@@ -992,49 +1006,71 @@ def tqy(sigma,qs=qvecs):
     
     return (-qy,sigma)#Note - sign because it's k-Q
 
+def tq0(sigma):
+    if sigma==(0,0):
+        return (1,sigma)
+    else:
+        return (0,sigma)
+    
+def tqproj1(sigma):
+    if sigma!=(0,0):
+        return (1/3,(-1,-1))
+    else:
+        return (0,sigma)
 
+def tqproj2(sigma):
+    if sigma!=(0,0):
+        return (1/3,(1,0))
+    else:
+        return (0,sigma)
+
+def tqproj3(sigma):
+    if sigma!=(0,0):
+        return (1/3,(0,1))
+    else:
+        return (0,sigma)
 
 
 #Diagonal term for new basis convention
 
-def gkx(kx,ky):
-    return kx
-def gky(kx,ky):
-    return ky
-def g0(kx,ky):
-    return 1
-def g00(x):
-    return x
-def gw(w):
-    # Define a new function that takes a and b, and uses the captured c
-    def multiplied_function(kx, ky):
-        return w * g0(kx, ky)
-    return multiplied_function
-def gkxw(w):
-    # Define a new function that takes a and b, and uses the captured c
-    def multiplied_function(kx, ky):
-        return w * gkx(kx, ky)
-    return multiplied_function
-def gkyw(w):
-    # Define a new function that takes a and b, and uses the captured c
-    def multiplied_function(kx, ky):
-        return w * gky(kx, ky)
-    return multiplied_function
+# def gkx(kx,ky):
+#     return kx
+# def gky(kx,ky):
+#     return ky
+# def g0(kx,ky):
+#     return 1
+# def g00(x):
+#     return x
+# def gw(w):
+#     # Define a new function that takes a and b, and uses the captured c
+#     def multiplied_function(kx, ky):
+#         return w * g0(kx, ky)
+#     return multiplied_function
+# def gkxw(w):
+#     # Define a new function that takes a and b, and uses the captured c
+#     def multiplied_function(kx, ky):
+#         return w * gkx(kx, ky)
+#     return multiplied_function
+# def gkyw(w):
+#     # Define a new function that takes a and b, and uses the captured c
+#     def multiplied_function(kx, ky):
+#         return w * gky(kx, ky)
+#     return multiplied_function
 
-def gcos(w,theta):
-    # Define a new function that takes a and b, and uses the captured c
-    def multiplied_function(kx, ky):
-        return w * np.cos(theta)* g0(kx, ky)
-    return multiplied_function
-def gsin(w,theta):
-    # Define a new function that takes a and b, and uses the captured c
-    def multiplied_function(kx, ky):
-        return w * np.sin(theta)* g0(kx, ky)
-    return multiplied_function
-def gtx(phi):
-    return np.cos(phi)
-def gty(phi):
-    return np.sin(phi)
+# def gcos(w,theta):
+#     # Define a new function that takes a and b, and uses the captured c
+#     def multiplied_function(kx, ky):
+#         return w * np.cos(theta)* g0(kx, ky)
+#     return multiplied_function
+# def gsin(w,theta):
+#     # Define a new function that takes a and b, and uses the captured c
+#     def multiplied_function(kx, ky):
+#         return w * np.sin(theta)* g0(kx, ky)
+#     return multiplied_function
+# def gtx(phi):
+#     return np.cos(phi)
+# def gty(phi):
+#     return np.sin(phi)
 
 
 
@@ -1617,7 +1653,9 @@ def make_each_matrix(term_list,state_list,dirname,matrix_name,type,term_number):
             print(filename+'_'+f'{term_number}'+'.dill')
             with open(filename+'_'+f'{term_number}'+'.dill', 'wb') as file:
                 pickle.dump(test_matrix, file)
+
         reconstructed_matrix=test_matrix.form_matrix()
+
 
 
 
@@ -1625,7 +1663,7 @@ def make_each_matrix(term_list,state_list,dirname,matrix_name,type,term_number):
 def load_matrices(filelist):
     first=True
     for matrix_file in filelist:
-        print(matrix_file)
+        #print(matrix_file)
         if first:
             with open(matrix_file,'rb') as f:
                 combined_matrix_object=dill.load(f)
@@ -1636,7 +1674,7 @@ def load_matrices(filelist):
             with open(matrix_file,'rb') as f:
                 temp_matrix_object=dill.load(f)
             temp_matrix=temp_matrix_object.form_matrix()
-            print(temp_matrix.shape)
+            #print(temp_matrix.shape)
             del temp_matrix_object
             combined_matrix=combined_matrix+temp_matrix
             gc.collect()#To remove the overwritten variable if not done already.
@@ -1645,7 +1683,7 @@ def load_matrices(filelist):
     
 
 def make_template_files(particle_no,shell_count,target_terms,name,indiviudal,type):
-    shells_particle=generate_shell_basis_gamma(shell_count=shell_count,q_vecs=tqs,number_of_particles=particle_no,nonlayer=testnonlayer,center=center)
+    shells_particle=shell_basis#generate_shell_basis_gamma(shell_count=shell_count,q_vecs=tqs,number_of_particles=particle_no,nonlayer=testnonlayer,center=center)
     k0=B
     cluster_arg=int(sys.argv[1])-1
     dir_path=f'{particle_no}particles_{shells_used}shells_center{center}_matrices/{name}_particles{particle_no}_shells{shell_count}_center{center}'
@@ -1669,7 +1707,7 @@ def test_matrices_against_diag(matrix_dir,target_terms):
     return None
 
 #Hamiltonian terms
-tqs=[np.array([-1,-1]),np.array([1,0]),np.array([0,1])]
+
 shell_basis=generate_shell_basis_gamma(shell_count=shells_used,q_vecs=tqs,number_of_particles=particle_no,nonlayer=testnonlayer,center=center)
 print(f'Number of basis states {len(shell_basis)}')
 
