@@ -36,21 +36,70 @@ for key, value in vars(args).items():
 
 dir_path=load_templates.template_matrix_dir
 shell_basis=make_templates.shell_basis
+
+#Let's start working at one particle
+HkA=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=1)
+
+print(HkA.shape)
+
+print(f'eigenvalues of last block diagonal:\n{np.linalg.eigh(HkA[12:16,12:16])[0]}')
+print(f'Tunnelling term w_1: {w1}')
+
+def vg(k0,G):
+    Hk0=load_templates.gen_Hk2(kx=k0[0],ky=k0[1],particles_used=1)
+    eigvals_init,eigvecs_init=np.linalg.eigh(Hk0)
+    Hkg=load_templates.gen_Hk2(kx=(k0+G)[0],ky=(k0+G)[1],particles_used=1)
+    eigvals_translated,eigvecs_translated=np.linalg.eigh(Hkg)
+
+    vg_eigbasis=np.conjugate(np.transpose(eigvecs_init))@eigvecs_translated
+    vg_compbasis=eigvecs_init@vg_eigbasis@np.conjugate(np.transpose(eigvecs_init))
+
+
+    
+    
+
+    print(np.allclose(vg_compbasis@eigvecs_init,eigvecs_translated))
+
+
+vg(A,-qvecs[0]-2*qvecs[1])
+
+exit()
+
+
 #term_number=int(sys.argv[1])
 
 #template=make_templates.construct_templates(dir_path,make_templates.term_list_dic,term_number=None,make_all=True)
 #q0proj=make_templates.tpp(state_list=shell_basis,pauli_dic={0:make_templates.p0,1:make_templates.tq0,2:make_templates.p0,3:make_templates.p0},prefactor=1)
 #make_templates.inspect_elements(q0proj,shell_basis)
 
-from Code.oldbase import symmetries2
+#from Code.oldbase import symmetries2
 
 
 
 
 
+state_indices_1=[4,5]
+state_indices_2=[10,11]
 
+b1=-qvecs[0]-2*qvecs[0]
+print(f'b1: \n {b1}')
 
+b2=qvecs[0]-qvecs[1]
+HkA_2=load_templates.gen_Hk2(kx=A[0]+b2[0],ky=A[1]+b2[1],particles_used=1)
+# print(np.linalg.eigh(HkA_1)[0])
+# print(np.linalg.eigh(HkA_2)[0])
+# exit()
+print(f'same under RLV translation: {np.allclose((np.linalg.eigh(HkA_1)[0]),(np.linalg.eigh(HkA_2)[0]))}')
+exit()
+print(HkA_1.shape)
+print(np.linalg.eigh(HkA_1)[0])
+eigvals1,eigvecs1=np.linalg.eigh(HkA_1)
+coeffmatrix=eigvecs1[:,state_indices_1[0]]
+print(coeffmatrix.shape)
 
+#2. OK the more difficult part is to write a function that takes an arbitrary four particle states and returns it as a 16x4 matrix
+print(len(shell_basis))
+exit()
 
 
 
@@ -83,7 +132,16 @@ def qc3(qpair):
     return (1,(-q3,q2-q3))
 
 
-###########################
+###########################band hk##########################
+
+#1. Get single particle states.
+#2. Convert four particle states to matrix of coefficients.
+#3. Contract with the single particle states to get the projection.
+#4. From the projections, get the HK term
+
+
+
+
 # c3z=({0:make_templates.p0,1:qc3,2:make_templates.p0,3:make_templates.pexpz3},1,False)
 # c3z=({0:make_templates.p0,1:qc3,2:make_templates.p0,3:make_templates.pexpz3},1,False)
 # c3z2=({0:make_templates.p0,1:qc3,2:make_templates.pexpz3,3:make_templates.pexpz6},1,False)

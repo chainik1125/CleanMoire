@@ -56,9 +56,10 @@ def make_template_matrices(kx_list,ky_list,kind_list,tun_list,HK_list):
     return non_int_templates,HK_matrix
 
 
-template_matrix_dir=f'../large_files/matrix_templates/{particle_no}particles_{shells_used}shells_center{center}_matrices_new/ham_terms'
-def gen_Hk2(kx,ky):
-    filelist_kx,filelist_ky,filelist_kind,filelist_tun,HK_list=find_template_dirs(template_matrix_dir,particle_no,shells_used,center)
+
+def gen_Hk2(kx,ky,particles_used):
+    template_matrix_dir=f'../large_files/matrix_templates/{particles_used}particles_{shells_used}shells_center{center}_matrices_new/ham_terms'
+    filelist_kx,filelist_ky,filelist_kind,filelist_tun,HK_list=find_template_dirs(template_matrix_dir,particles_used,shells_used,center)
     non_int_templates,HK_matrix=make_template_matrices(kx_list=filelist_kx,ky_list=filelist_ky,kind_list=filelist_kind,tun_list=filelist_tun,HK_list=HK_list)
     
     first=True
