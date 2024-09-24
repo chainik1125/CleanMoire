@@ -32,7 +32,7 @@ import copy
 from base_classes import saved_template_matrix
 
 from base_functions import *
-
+import cProfile
 
 #TO DO:
 #1. For larger Hamiltonians you're generate H algorithm is going to take a long time. 
@@ -838,17 +838,116 @@ if __name__ == "__main__":
         matching_indices = matches.nonzero(as_tuple=True)[0]  # Indices of matching tensors
         
         return matching_indices
+    
+    def count_zeros(tensor):
+        N,n,_=tensor.shape
+        zero_mask = (tensor == 0)
 
-    def tpp_from_tensor(state_list,tensor_list,pauli_dic,prefactor):
+        # Count the number of zeros in each mxm tensor
+        zero_counts = zero_mask.sum(dim=(1, 2))  # NxNx tensor, where each element is the count of zeros in the corresponding mxm tensor
+
+        # Find indices where the count of zeros is exactly m
+        indices = (zero_counts == n).nonzero(as_tuple=True)
+        
+        
+
+        return indices
+    
+    def find_matches(result_tensor,basis_tensor):
+        matched_indices=[]
+        start_indices=[]
+        #Can insert prep code here like finding the row sums etc to cut down the number of states you need to compare.
+
+        N,n,n,d=result_tensor.shape
+        for state_index in range(N):
+            for particle_index in range(n):
+                state_tensor=result_tensor[state_index,particle_index]
+                unique_rows,counts=torch.unique(state_tensor,dim=0,return_counts=True)
+                duplicate_rows = unique_rows[counts > 1]
+                if len(duplicate_rows)>0:
+                    #Could instead append an mxd tensor of all zeros and then exclude those.
+                    continue
+                else:
+                    basis_expanded = basis_tensor.unsqueeze(1)  # Shape becomes (N, 1, m, d)
+                    state_tensor=state_tensor.unsqueeze(0).unsqueeze(2)
+                    row_diffs=state_tensor-basis_expanded
+                    row_diffs=row_diffs.transpose(1,2)
+
+                    sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
+                    zeros=count_zeros(sum_row_diffs)
+                    matched_basis_indices=[z.item() for z in zeros[0]]
+                    
+                    zero_indices=torch.nonzero(sum_row_diffs[zeros]==0)
+                    permutation_sum=zero_indices[:,1].sum()-zero_indices[:,2].sum()
+
+                    matched_indices.append((state_index,particle_index,matched_basis_indices,permutation_sum))
+                    # print(f'result state tensor')
+                    # print(state_tensor)
+                    # print(f'comparison basis tensor:')
+                    # print(basis_expanded[15])
+                    # print(f'difference tensor:')
+                    # print(row_diffs[15])
+                    # sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
+                    # print(f'sum row diffs')
+                    # print(sum_row_diffs[15])
+                    # print(f'zero counts')
+                    # zeros=count_zeros(sum_row_diffs)
+                    # print(zeros)
+                    # print(f'inital result state')
+                    # print(state_tensor)
+                    # print(f'claimed matching basis state')
+                    # print(basis_tensor[zeros[0][0]])
+                    # print(f'zero indices: {torch.nonzero(sum_row_diffs[zeros]==0)}')
+                    
+                    
+
+                    # print(f'zero indices: {zero_indices.shape}')
+                    
+                    # print(f'permutation: {zero_indices[:,1].sum()-zero_indices[:,2].sum()}')
+                    
+                                      
+                
+        return matched_indices
+
+
+    def make_H_from_indices(matching_indices,N):
+        H0=np.zeros((N,N),dtype=complex)
+        #Let's first do it in sequence and then we can parrallelize
+        # print(matching_indices)
+        for matched_state in matching_indices:
+            H0[matched_state[0],matched_state[2][0]]=1*(-1)**(matched_state[-1].item())#will change with pauli action
+
+        return H0
+    
+    def time_it(func):
+        def wrapper(*args, **kwargs):
+            if kwargs.get('track_time', False):
+                timing_info = {}  # Dictionary to store sub-function runtimes
+                def timed_func(func_to_time, func_name, *args):
+                    start_time = time.time()
+                    result = func_to_time(*args)
+                    end_time = time.time()
+                    elapsed_time = end_time - start_time
+                    timing_info[func_name] = elapsed_time
+                    return result
+
+                # Replace original function calls with timed ones
+                result = func(timed_func, *args, **kwargs)
+                return result, timing_info  # Return result and timing info
+            else:
+                # Call the original function without timing
+                return func(*args, **kwargs)
+        return wrapper
+    
+    @time_it
+    def tpp_from_tensor(timed_func,state_list,tensor_list,pauli_dic,prefactor,**kwargs):
         N,n,d=tensor_list.shape
         px_tensor=torch.zeros((N,n,n,d),dtype=torch.int)
         
         for particle_ind in range(n):
             #would just add other pauli actions here if need be.
             px_tensor[:,particle_ind,particle_ind,4]=1
-        print(px_tensor.count_nonzero())
-        
-        
+
         
         tensor_list_torch=torch.tensor(tensor_list)
 
@@ -863,308 +962,118 @@ if __name__ == "__main__":
 
         
         res_repeated = input_repeated.clone()
-        
+        print(f'input original')
+        print(res_repeated[:1])
+
 
         res_repeated[:,:,:,4]=(input_repeated[:,:,:,4]+px_tensor[:,:,:,4])%2
+        print(f'output original')
+        print(res_repeated[:1])
 
-        def find_duplicate_indices(A):
-            # A: N x m x m x d tensor
-            N, m, _, d = A.shape
-            
-            # Reshape A into a 2D matrix where each row is one of the mxd rows
-            A_flat = A.reshape(N * m * m, d)  # Now a (N*m*m) x d tensor
-            
-            # Find unique rows and get the inverse indices that map to unique rows
-            unique_rows, inverse_indices = torch.unique(A_flat, dim=0, return_inverse=True)
-            
-            # Count occurrences of each unique row
-            row_counts = torch.bincount(inverse_indices)
-            
-            # Find unique rows that occur more than once (i.e., duplicates)
-            duplicate_unique_indices = torch.nonzero(row_counts > 1, as_tuple=True)[0]
-            
-            # Check which rows in the flattened tensor correspond to duplicated unique rows
-            duplicate_mask = torch.isin(inverse_indices, duplicate_unique_indices)
-            
-            # Get the original indices (flattened index) where duplicates occur
-            duplicate_indices_flat = torch.nonzero(duplicate_mask, as_tuple=True)[0]
-            
-            # Convert flattened indices back to Nxm indices (N and m)
-            duplicate_indices_Nm = duplicate_indices_flat // (m * m), (duplicate_indices_flat % (m * m)) // m
+        def pauli_action(pauli_dic,basis_tensor):
+            input_tensor=basis_tensor.clone()
+            input_expanded = input_tensor.unsqueeze(2)  # Shape: (N, m, 1, d)
+            input_expanded=input_expanded.repeat(1,1,n,1)
+            input_expanded.transpose_(1,2)
+            res_states=input_expanded.clone()
+            res_coeff=res_states.clone()
+            pmask=torch.zeros((N,n,n,d),dtype=torch.int)
+            plus_tensor=torch.zeros((N,n,n,d),dtype=torch.int)
+            # for particle_ind in range(n):
+            #     #for key in pauli_dic.keys():
+            #     pmask[:,particle_ind,particle_ind,4]=1
+            #     plus_tensor=plus_tensor+pmask*(pauli_dic[3](res_states)[1])
+            # for particle_ind in range(n):
+            #     res_states[:,particle_ind,:,]
 
-            return duplicate_indices_Nm
+            for particle_ind in range(n):
+                res_states[:,particle_ind,particle_ind,4]=pauli_dic[3](input_expanded[:,particle_ind,particle_ind,4])[1]
 
-        #I think this failed...        
-        # duplicate_indices = find_duplicate_indices(res_repeated)
-        # print(len(duplicate_indices[0]))
-        # exit()
-        def count_zeros(tensor):
-            N,n,_=tensor.shape
-            zero_mask = (tensor == 0)
-
-            # Count the number of zeros in each mxm tensor
-            zero_counts = zero_mask.sum(dim=(1, 2))  # NxNx tensor, where each element is the count of zeros in the corresponding mxm tensor
-
-            # Find indices where the count of zeros is exactly m
-            indices = (zero_counts == n).nonzero(as_tuple=True)
-            
-            
-
-            return indices
-        
-        def find_matches(result_tensor,basis_tensor):
-            matched_indices=[]
-            start_indices=[]
-            #Can insert prep code here like finding the row sums etc to cut down the number of states you need to compare.
-
-            N,n,n,d=result_tensor.shape
-            for state_index in range(N):
-                for particle_index in range(n):
-                    state_tensor=result_tensor[state_index,particle_index]
-                    unique_rows,counts=torch.unique(state_tensor,dim=0,return_counts=True)
-                    duplicate_rows = unique_rows[counts > 1]
-                    if len(duplicate_rows)>0:
-                        #Could instead append an mxd tensor of all zeros and then exclude those.
-                        continue
-                    else:
-                        basis_expanded = basis_tensor.unsqueeze(1)  # Shape becomes (N, 1, m, d)
-                        state_tensor=state_tensor.unsqueeze(0).unsqueeze(2)
-                        row_diffs=state_tensor-basis_expanded
-                        row_diffs=row_diffs.transpose(1,2)
-
-                        sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
-                        zeros=count_zeros(sum_row_diffs)
-                        matched_basis_indices=[z.item() for z in zeros[0]]
-                        matched_indices.append((state_index,particle_index,matched_basis_indices))
-
-                        
-                        # print(f'result state tensor')
-                        # print(state_tensor)
-                        # print(f'comparison basis tensor:')
-                        # print(basis_expanded[0])
-                        # print(f'difference tensor:')
-                        # print(row_diffs[0])
-                        # sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
-                        # print(f'sum row diffs')
-                        # print(sum_row_diffs[0])
-                        # print(f'zero counts')
-                        # zeros=count_zeros(sum_row_diffs)
-                        # print(zeros)
-                        # print(f'inital result state')
-                        # print(state_tensor)
-                        # print(f'claimed matching basis state')
-                        # print(basis_tensor[zeros[0][0]])
-                        # exit()
-                        
-                        
-                        
-
-                    
-
-                    
-            return matched_indices
-        
-        test=find_matches(res_repeated,tensor_list_torch)
-        input_tensor_index=32
-        print(f'starting state:')
-        print(tensor_list_torch[test[input_tensor_index][0]])
-        print(f'matching state:,particle acted on: {test[input_tensor_index][1]}')
-        print(tensor_list_torch[test[input_tensor_index][2]])
-        #print(len(test))
-        exit()
-        
-
-
-        
-        def seq_diff(A,B):
-            N,n,_,d=A.shape
-            res_tensor_list=[]
-            for state_index in range(N):
-                state_mat=A[state_index] #nxd state
-
-                #Now need to find all the differences
+            # print('input states:')
+            # print(res_states[:1])
                 
-                state_mat_expanded = state_mat.unsqueeze(0).expand(N, -1, -1)  # Nxmxd tensor
-
-                # Compute the differences
-                differences = A.unsqueeze(2) - state_mat_expanded.unsqueeze(1)  # Nxmxmx d tensor
-
-                # Compute the absolute differences and sum along the last dimension
-                abs_differences = torch.abs(differences)  # Nxmxmx d tensor
-                sum_abs_differences = abs_differences.sum(dim=3)  # Nxmxm tensor
-                res_tensor_list.append(sum_abs_differences)
-            res_tensor_list=torch.stack(res_tensor_list,dim=0)
-
-            return res_tensor_list
-        
-
-
-
-
-
-
-        def seq_diff2(A,B):
-            N,n,d=A.shape
-            res_tensor_list=[]
-            for state_index in range(N):
-                state_mat=A[state_index] #nxd state
-                state_matches_list=[]
-                for particle_index in range(n):
-                    B_comp=B[:,particle_index,:,:] #Nxd state
-                    print(f'b comp')
-                    print(B_comp)
-                    same_rows = (B_comp.unsqueeze(1) == B_comp.unsqueeze(0)).all(-1)
-                    row_pairs = torch.nonzero(same_rows.triu(1), as_tuple=True)
-                    print(row_pairs)
-                    if row_pairs[0].shape[0] != 0:
-                        continue
-                    else:
-                        print(f'the else')
-                        #Now need to find all the differences
-                        
-                        # B_comp = B_comp.unsqueeze(1)  # Nx1xd tensor
-                        # B_comp = B_comp.repeat(1,n,1,1)  # Nxmxd tensor
-                        B_comp_1 = B_comp.unsqueeze(1)  # Shape becomes (N, 1, m, d)
-                        state_mat=state_mat.unsqueeze(0).unsqueeze(2)
-                        row_diffs=B_comp_1-state_mat
-                        row_diffs=row_diffs.transpose(1,2)
-                        print(row_diffs.shape)
-                        exit()
-                        print(row_diffs[0])
-                        
-                        print(B_comp_1.shape)
-                        
-                        print(f'initial state')
-                        print(B_comp_1[0][0])
-                        print(B_comp_1[1][0])
-                        print(f'state mat subtracting off')
-                        print(state_mat[0])
-                        print(f'difference')
-                        print(row_diffs[0])
-                        print(f'sum of abs diff:')
-                        print(torch.abs(row_diffs[0]).sum(dim=2))
-                        exit()
-                        # B_comp_2 = B_comp.unsqueeze(2)  # Shape becomes (N, m, 1, d)
-                        
-                        # # Step 2: Perform outer product
-                        # print(B_comp.shape)
-                        # exit()
-                        # B_comp = B_comp_1 - B_comp_2  # Broadcasting creates (N, m, m, d)
-                        # print(B_comp[0].shape)
-                        # print(B_comp[0])
-                        # print(state_mat)
-                        
-                        # exit()
-                        
-                        # Compute the differences
-                        #differences = B_comp-state_mat  # Nxmxmxd tensor
-                        
-                        # Compute the absolute differences and sum along the last dimension
-                        abs_differences = torch.abs(row_diffs)  # Nxmxmx d tensor
-                        print(abs_differences.shape)
-                        
-                        sum_abs_differences = abs_differences.sum(dim=3)  # Nxmxm tensor
-                        print(sum_abs_differences.shape)
-                        
-                        #Instead of keeping the whole thing, at this point you may as well identify which of the N indices you map to return an n tensor
-
-                        
-                        zeros=count_zeros(sum_abs_differences)
-                        print(zeros[0])
-                        exit()
-                        print(zeros[0][0])
-
-                        print(sum_abs_differences[zeros[0]])
-                        print(state_mat)
-                        print(B_comp[zeros[0]][2])
-
-                        exit()
-                        print(f'len zeros {len(zeros)}')
-                        print(f'A first entry {A(zeros[0][0])}')
-                        exit()
-                        
-                        
-                        state_matches_list.append(sum_abs_differences)
-                        #state_matches_tensor=torch.stack(state_matches_list,dim=1)
+            res_states[:,:,:,4]=res_states[:,:,:,4]+plus_tensor[:,:,:,4]
+            # print('output states:')
+            # print(res_states[:1])
+            # exit()
+            res_coeff=res_coeff+pmask*pauli_dic[3](res_states)[1]
             
-                res_tensor_list.append(state_matches_list)
-            #res_tensor_list=torch.stack(res_tensor_list,dim=0)
+            
+            
 
             
-            exit()
-
-            return res_tensor_list
-
-                
-
-
-        test2=find_matching_indices(A=tensor_list_torch,B=res_repeated)
-        print(f'first function {test2}')
-        exit()
-
-        test_seq=seq_diff2(tensor_list_torch,res_repeated)
-        print(test_seq.shape)
-        print(test_seq[-1][-2])
-        print(len(count_zeros(test_seq)[0]))
-        exit()
-        #test=compute_all_pairs(tensor_list_torch,res_tensor)
-        # print(tensor_list_torch[:2])
-        # print(res_tensor[:2])
-
-        # diff_test=diff_all_pairs(tensor_list_torch,res_tensor)
-
-        # print(diff_test.shape)
-
-        exit()
+            
+            return res_states,res_coeff
         
-        
-        print(test[0][1])
-        exit()
-        print(test.shape)
-        print(torch.linalg.det(test))
-        print(tensor_list_torch[-1])
-        print(res_tensor[1])
-        print(test[-1][1])
-        exit()
+        test_states,test_coeff=pauli_action(pauli_dic,tensor_list_torch)
 
-        print(f'input state: {tensor_list[0]}')
-        print(f'res state: {res_tensor[0]}')
-
-        print(type(tensor_list_torch))
-        print(type(res_tensor))
-
-        #print(f'first few dets:')
-
-        
-
-        multp=torch.bmm(tensor_list_torch, res_tensor.transpose(2,1))
-        multp_sqrt=torch.sqrt(multp)
-        print(multp_sqrt.shape)
-        print(multp_sqrt[-1])
-
-        
-        
+        print(f'states equal: {torch.allclose(test_states,res_repeated)}')
 
         exit()
 
-        print(f'dets tensor shape:{dets_tensor.shape}')
-        print(f'are close shape: {are_close.shape}')
+        matching_indices=timed_func(find_matches,"find_matches",res_repeated,tensor_list_torch)
+        #input_tensor_index=3
+        #print(f'starting state:')
+        #print(tensor_list_torch[matching_indices[input_tensor_index][0]])
+        #print(f'matching state:,particle acted on: {matching_indices[input_tensor_index][1]}')
+        #print(tensor_list_torch[matching_indices[input_tensor_index][2]])
+        #print(f'permutation sum: {matching_indices[input_tensor_index][3]}')
+        #print(f'permutations sums: {[matching_indices[x][3] for x in range(len(matching_indices))]}')
 
-        exit()
-        matching_indices=find_mapped_tensor(tensor_list_torch,tensor_list_torch)
-        print(f'matching indices shape first function {matching_indices.shape}')
-        matching_indices=find_permutation_equivalents(res_tensor,tensor_list_torch)
-        print(f'matching indices shape second function {matching_indices.shape}')
-        exit()
-        print(matching_indices[0])
-        print(f'tensor 1:\n {tensor_list[matching_indices[1][0]]}')
-        print(f'tensor 2:\n {tensor_list[matching_indices[1][1]]}')
-        exit()
-        
-        return None
+
+
+        res_H=timed_func(make_H_from_indices,"make_H_from_indices",matching_indices,N)
+        return res_H
     
 
-    tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:px,3:p0},1)
+    test,_=tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1,track_time=True)
+    exit()
+
+    def runtime_comparison(new_func,old_func,particle_range):
+        fig=make_subplots(rows=1,cols=1)
+        old_runtimes=[]
+        new_runtimes=[]
+        truth=[]
+        for p_count in tqdm(particle_range):
+            shells=2
+            particles=p_count
+            center='K'
+            shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particles,nonlayer=testnonlayer,center=center)
+            test_tensor_states=make_basis_tensors(shell_basis_dicts)
+            
+            
+            test_new,test_times=new_func(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1,track_time=True)
+            # for key in test_times.keys():
+            #     new_runtimes.append(test_times[key])
+            new_runtimes.append([test_times[k] for k in sorted(test_times.keys())])
+
+            start=time.time()
+            test_old=old_func(shell_basis_dicts,{0:p0,1:t0,2:p0,3:px},1)
+            end=time.time()
+            old_runtimes.append(end-start)
+            truth.append(np.allclose(test_new,test_old))
+            
+
+
+
+        fig.add_trace(go.Scatter(x=np.arange(1,len(old_runtimes)+1),y=old_runtimes,mode='lines',name='Old method'),row=1,col=1)
+        fig.add_trace(go.Scatter(x=np.arange(1,len(new_runtimes)+1),y=np.array(new_runtimes).sum(axis=1),mode='lines',name='New method'),row=1,col=1)       
+        fig.update_layout(title_text=f'Comparison of old and new methods for tpp, same result:{truth} ',showlegend=True)
+        fig.show()
+        
+
+
+    #To improve the runtime further, I want to try to parrallelize the outer N, and break that up into chunks so that this can work 
+    #for larger systems
+
+    #But first let me finish the pauli code so that it works for an arbitrary matrix
+
+
+    #OK 
+
+
+    # print(cProfile.run('tpp(shell_basis_dicts,{0:p0,1:t0,2:px,3:p0},1)'))
+    # print(cProfile.run('tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:px,3:p0},1)'))
     exit()
         
     
