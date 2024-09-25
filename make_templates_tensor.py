@@ -926,17 +926,17 @@ if __name__ == "__main__":
                 continue
             else:
                 coeff_res=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:]
-                print(f'matched state: {test_tensor_states[matched_state[0]]}')
-                print(f'initial state: {matched_state[0]}')
-                print(f'particle index: {matched_state[1]}')
-                print(f'matched basis states: {test_tensor_states[matched_state[2]]}')
-                print(f'coeff tensor: {coeff_res}')
-                print(f' coeff {torch.prod(coeff_res)}')
-                print(f'permutation sum: {matched_state[-1]}')
-                exit()
+                # print(f'matched state: {test_tensor_states[matched_state[0]]}')
+                # print(f'initial state: {matched_state[0]}')
+                # print(f'particle index: {matched_state[1]}')
+                # print(f'matched basis states: {test_tensor_states[matched_state[2]]}')
+                # print(f'coeff tensor: {coeff_res}')
+                # print(f' coeff {torch.prod(coeff_res)}')
+                # print(f'permutation sum: {matched_state[-1]}')
+                # exit()
                 coeff=torch.prod(coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:],axis=-1)
                 #coeff=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],4]
-                H0[matched_state[2][0],matched_state[0]]=1*((-1)**(matched_state[-1].item()))*coeff#will change with pauli action
+                H0[matched_state[2][0],matched_state[0]]=H0[matched_state[2][0],matched_state[0]]+1*((-1)**(matched_state[-1].item()))*coeff#will change with pauli action
         return H0
     
     def time_it(func):
@@ -1068,13 +1068,13 @@ if __name__ == "__main__":
         return res_H
     
     #need to check if px will work with non-trivial momentum transformations
-    test_tensor,_=tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:pz},1,track_time=True)
-    print(f'test tensor shape: {test_tensor.shape}')
+    test_tensor,_=tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:pz,1:t0,2:py,3:px},1,track_time=True)
+    #print(f'test tensor shape: {test_tensor.shape}')
     
     
-    test_old=tpp(shell_basis_dicts,{0:p0,1:t0,2:p0,3:pz},1)
+    test_old=tpp(shell_basis_dicts,{0:pz,1:t0,2:py,3:px},1)
     #print(f'non zero states same?: {np.allclose(np.nonzero(test_tensor),np.nonzero(test_old))}')
-    
+    print(f'which states are non zero?: {np.nonzero(test_tensor-test_old)[0].shape}')
     print(f'abs value same?: {np.allclose(np.abs(test_tensor),np.abs(test_old))}')
     
     print(f'same result: {np.allclose(test_tensor,test_old)}')
