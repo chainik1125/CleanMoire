@@ -617,24 +617,56 @@ def inspect_elements(matrix,state_list,state_array=None):
 def t1_plus(sigma):
     newsigma=(sigma[0]-1,sigma[1]-1)#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
     return (1,newsigma)
+def t1_plus_tensor(sigma_tensor):
+    res_tensor=sigma_tensor.clone()
+    res_tensor=sigma_tensor-1
+    return (1,res_tensor)
+
 #Now let's build up the tunnelling matrices
 def t1_minus(sigma):
-    newsigma=(sigma[0]+1,sigma[1]+1)#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
+    newsigma=(sigma[0]+1,sigma[1]+1)#i.e this is equivalent to subtracting q1 from the state. - I guess this is not good, because you're not tying it to your definition of the qs!
     return (1,newsigma)
+
+def t1_minus_tensor(sigma_tensor):
+    res_tensor=sigma_tensor.clone()
+    res_tensor=sigma_tensor+1
+    return (1,res_tensor)
 
 def t2_plus(sigma):
     newsigma=(sigma[0]+1,sigma[1])#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
     return (1,newsigma)
+
+def t2_plus_tensor(sigma_tensor):
+    res_tensor=sigma_tensor.clone()
+    res_tensor+=res_tensor[:,0]+1
+    return (1,res_tensor)
+
 def t2_minus(sigma):
     newsigma=(sigma[0]-1,sigma[1])#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
     return (1,newsigma)
 
+def t2_minus_tensor(sigma_tensor):
+    res_tensor=sigma_tensor.clone()
+    res_tensor-=res_tensor[:,0]-1
+    return (1,res_tensor)
+
 def t3_plus(sigma):
     newsigma=(sigma[0],sigma[1]+1)#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
     return (1,newsigma)
+
+def t3_plus_tensor(sigma_tensor):
+    res_tensor=sigma_tensor.clone()
+    res_tensor+=res_tensor[:,1]+1
+    return (1,res_tensor)
+
 def t3_minus(sigma):
     newsigma=(sigma[0],sigma[1]-1)#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
     return (1,newsigma)
+
+def t3_minus_tensor(sigma_tensor):
+    res_tensor=sigma_tensor.clone()
+    res_tensor-=res_tensor[:,1]-1
+    return (1,res_tensor)
 
     
 
@@ -652,11 +684,42 @@ def tqx(sigma,qs=qvecs):
     
     return (-qx,sigma)#Note - sign because it's k-Q
 
+def tqx_tensor(sigma_tensor,qs=qvecs):
+
+    
+    res_tensor=torch.complex(sigma_tensor.float(),torch.zeros_like(sigma_tensor).float())
+    qs=torch.complex(torch.tensor(qs).float(),torch.zeros_like(torch.tensor(qs).float()))
+    res_tensor=res_tensor@torch.tensor(qs)
+    
+    
+    #Because you're goinf to take the product of the coeffs over both dof entries
+    qx_tensor=torch.ones_like(res_tensor)
+    qx_tensor[:,0]=-res_tensor[:,0]
+
+    
+    return (qx_tensor,sigma_tensor)
+
+
 def tqy(sigma,qs=qvecs):
     q=sigma[0]*qs[0]+sigma[1]*qs[1]
     qy=q[1]
     
     return (-qy,sigma)#Note - sign because it's k-Q
+
+def tqy_tensor(sigma_tensor,qs=qvecs):
+    res_tensor=torch.complex(sigma_tensor.float(),torch.zeros_like(sigma_tensor).float())
+    qs=torch.complex(torch.tensor(qs).float(),torch.zeros_like(torch.tensor(qs).float()))
+    res_tensor=res_tensor@torch.tensor(qs)
+    
+    
+    #Because you're goinf to take the product of the coeffs over both dof entries
+    qy_tensor=torch.ones_like(res_tensor)
+    qy_tensor[:,1]=-res_tensor[:,1]
+
+    
+    return (qy_tensor,sigma_tensor)
+
+
 
 def tq0(sigma):
     if sigma==(0,0):
@@ -688,7 +751,7 @@ def tqproj3(sigma):
 if __name__ == "__main__":
     shells=2
     particles=2
-    center='K'
+    center='Gamma'
     shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particles,nonlayer=testnonlayer,center=center)
     print(f'Number of basis states: {len(shell_basis_dicts)}')
 
@@ -926,6 +989,7 @@ if __name__ == "__main__":
                 continue
             else:
                 coeff_res=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:]
+
                 # print(f'matched state: {test_tensor_states[matched_state[0]]}')
                 # print(f'initial state: {matched_state[0]}')
                 # print(f'particle index: {matched_state[1]}')
@@ -934,6 +998,7 @@ if __name__ == "__main__":
                 # print(f' coeff {torch.prod(coeff_res)}')
                 # print(f'permutation sum: {matched_state[-1]}')
                 # exit()
+                
                 coeff=torch.prod(coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:],axis=-1)
                 #coeff=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],4]
                 H0[matched_state[2][0],matched_state[0]]=H0[matched_state[2][0],matched_state[0]]+1*((-1)**(matched_state[-1].item()))*coeff#will change with pauli action
@@ -1067,12 +1132,14 @@ if __name__ == "__main__":
         res_H=timed_func(make_H_from_indices,"make_H_from_indices",N,matching_indices,test_coeff,pauli_dic)
         return res_H
     
+
+    test_pauli_dic={0:p0,1:tqy_tensor,2:pz,3:pz}
     #need to check if px will work with non-trivial momentum transformations
-    test_tensor,_=tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:pz,1:t0,2:py,3:px},1,track_time=True)
+    test_tensor,_=tpp_from_tensor(shell_basis_dicts,test_tensor_states,test_pauli_dic,1,track_time=True)
     #print(f'test tensor shape: {test_tensor.shape}')
     
     
-    test_old=tpp(shell_basis_dicts,{0:pz,1:t0,2:py,3:px},1)
+    test_old=tpp(shell_basis_dicts,{0:p0,1:tqy,2:pz,3:pz},1)
     #print(f'non zero states same?: {np.allclose(np.nonzero(test_tensor),np.nonzero(test_old))}')
     print(f'which states are non zero?: {np.nonzero(test_tensor-test_old)[0].shape}')
     print(f'abs value same?: {np.allclose(np.abs(test_tensor),np.abs(test_old))}')
@@ -1091,7 +1158,7 @@ if __name__ == "__main__":
         for p_count in tqdm(particle_range):
             shells=2
             particles=p_count
-            center='K'
+            center='gamma'
             shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particles,nonlayer=testnonlayer,center=center)
             test_tensor_states=make_basis_tensors(shell_basis_dicts)
             
