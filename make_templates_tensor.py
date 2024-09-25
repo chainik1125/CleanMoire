@@ -874,11 +874,18 @@ if __name__ == "__main__":
                     row_diffs=row_diffs.transpose(1,2)
 
                     sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
+                    # print(f'sum row diffs')
+                    # print(sum_row_diffs[15])
+                    # exit()
                     zeros=count_zeros(sum_row_diffs)
                     matched_basis_indices=[z.item() for z in zeros[0]]
                     
                     zero_indices=torch.nonzero(sum_row_diffs[zeros]==0)
-                    permutation_sum=zero_indices[:,1].sum()-zero_indices[:,2].sum()
+                    
+                    #zero_indices_dims= #non-zero index, #particle index, #non zero particle index
+                    index_pairs=zero_indices[:,np.arange(zero_indices.shape[1])]
+
+                    permutation_sum=((np.abs(zero_indices[:,1]-zero_indices[:,2]))/2).sum()
 
                     matched_indices.append((state_index,particle_index,matched_basis_indices,permutation_sum))
                     # print(f'result state tensor')
@@ -910,13 +917,26 @@ if __name__ == "__main__":
         return matched_indices
 
 
-    def make_H_from_indices(matching_indices,N):
+    def make_H_from_indices(N,matching_indices,coeff_tensor,pauli_dic):
         H0=np.zeros((N,N),dtype=complex)
         #Let's first do it in sequence and then we can parrallelize
         # print(matching_indices)
         for matched_state in matching_indices:
-            H0[matched_state[0],matched_state[2][0]]=1*(-1)**(matched_state[-1].item())#will change with pauli action
-
+            if matched_state[2]==[]:
+                continue
+            else:
+                coeff_res=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:]
+                print(f'matched state: {test_tensor_states[matched_state[0]]}')
+                print(f'initial state: {matched_state[0]}')
+                print(f'particle index: {matched_state[1]}')
+                print(f'matched basis states: {test_tensor_states[matched_state[2]]}')
+                print(f'coeff tensor: {coeff_res}')
+                print(f' coeff {torch.prod(coeff_res)}')
+                print(f'permutation sum: {matched_state[-1]}')
+                exit()
+                coeff=torch.prod(coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:],axis=-1)
+                #coeff=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],4]
+                H0[matched_state[2][0],matched_state[0]]=1*((-1)**(matched_state[-1].item()))*coeff#will change with pauli action
         return H0
     
     def time_it(func):
@@ -946,7 +966,7 @@ if __name__ == "__main__":
         
         for particle_ind in range(n):
             #would just add other pauli actions here if need be.
-            px_tensor[:,particle_ind,particle_ind,4]=1
+            px_tensor[:,particle_ind,particle_ind,3]=1
 
         
         tensor_list_torch=torch.tensor(tensor_list)
@@ -966,7 +986,7 @@ if __name__ == "__main__":
         print(res_repeated[:1])
 
 
-        res_repeated[:,:,:,4]=(input_repeated[:,:,:,4]+px_tensor[:,:,:,4])%2
+        res_repeated[:,:,:,3]=(input_repeated[:,:,:,3]+px_tensor[:,:,:,3])%2
         print(f'output original')
         print(res_repeated[:1])
 
@@ -977,8 +997,11 @@ if __name__ == "__main__":
             input_expanded.transpose_(1,2)
             res_states=input_expanded.clone()
             res_coeff=res_states.clone()
+            res_coeff=torch.complex(res_coeff.float(),torch.zeros_like(res_coeff).float())
             pmask=torch.zeros((N,n,n,d),dtype=torch.int)
-            plus_tensor=torch.zeros((N,n,n,d),dtype=torch.int)
+            
+            #plus_tensor=torch.zeros((N,n,n,d),dtype=torch.int)
+
             # for particle_ind in range(n):
             #     #for key in pauli_dic.keys():
             #     pmask[:,particle_ind,particle_ind,4]=1
@@ -987,16 +1010,27 @@ if __name__ == "__main__":
             #     res_states[:,particle_ind,:,]
 
             for particle_ind in range(n):
-                res_states[:,particle_ind,particle_ind,4]=pauli_dic[3](input_expanded[:,particle_ind,particle_ind,4])[1]
-
+                for pauli_dic_key in pauli_dic.keys():
+                    if pauli_dic_key<1: 
+                        dof_key=pauli_dic_key
+                        res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
+                        res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]
+                    elif pauli_dic_key==1: #The q dof which need to be processed as a pair
+                        dof_key=[1,2]
+                        res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
+                        res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]
+                    else:
+                        dof_key=pauli_dic_key+1
+                        res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
+                        res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]
             # print('input states:')
             # print(res_states[:1])
                 
-            res_states[:,:,:,4]=res_states[:,:,:,4]+plus_tensor[:,:,:,4]
+            #res_states[:,:,:,4]=res_states[:,:,:,4]#+plus_tensor[:,:,:,4]
             # print('output states:')
             # print(res_states[:1])
             # exit()
-            res_coeff=res_coeff+pmask*pauli_dic[3](res_states)[1]
+            #res_coeff=res_coeff+pmask*pauli_dic[3](res_states)[1]
             
             
             
@@ -1005,13 +1039,21 @@ if __name__ == "__main__":
             
             return res_states,res_coeff
         
+
         test_states,test_coeff=pauli_action(pauli_dic,tensor_list_torch)
 
-        print(f'states equal: {torch.allclose(test_states,res_repeated)}')
+        #print(f'test states shape: {test_states.shape}')
+        #print(f'test coeff shape: {test_coeff.shape}')
 
-        exit()
+        #print(f'states equal: {torch.allclose(test_states,res_repeated)}')
 
-        matching_indices=timed_func(find_matches,"find_matches",res_repeated,tensor_list_torch)
+        
+
+        #matching_indices=timed_func(find_matches,"find_matches",res_repeated,tensor_list_torch)
+        matching_indices=timed_func(find_matches,"find_matches",test_states,tensor_list_torch)
+
+
+
         #input_tensor_index=3
         #print(f'starting state:')
         #print(tensor_list_torch[matching_indices[input_tensor_index][0]])
@@ -1022,11 +1064,23 @@ if __name__ == "__main__":
 
 
 
-        res_H=timed_func(make_H_from_indices,"make_H_from_indices",matching_indices,N)
+        res_H=timed_func(make_H_from_indices,"make_H_from_indices",N,matching_indices,test_coeff,pauli_dic)
         return res_H
     
+    #need to check if px will work with non-trivial momentum transformations
+    test_tensor,_=tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:pz},1,track_time=True)
+    print(f'test tensor shape: {test_tensor.shape}')
+    
+    
+    test_old=tpp(shell_basis_dicts,{0:p0,1:t0,2:p0,3:pz},1)
+    #print(f'non zero states same?: {np.allclose(np.nonzero(test_tensor),np.nonzero(test_old))}')
+    
+    print(f'abs value same?: {np.allclose(np.abs(test_tensor),np.abs(test_old))}')
+    
+    print(f'same result: {np.allclose(test_tensor,test_old)}')
+    print(f'tranpsoe same result: {np.allclose(test_tensor.T,test_old)}')
+    print(f'hermitian conjugate same result: {np.allclose(test_tensor.T.conj(),test_old)}')
 
-    test,_=tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1,track_time=True)
     exit()
 
     def runtime_comparison(new_func,old_func,particle_range):
