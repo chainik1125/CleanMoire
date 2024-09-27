@@ -125,7 +125,7 @@ def t2_plus(sigma):
 
 def t2_plus_tensor(sigma_tensor):
     res_tensor=sigma_tensor.clone()
-    res_tensor[:,0]+=res_tensor[:,0]+1
+    res_tensor[:,0]+=1
     return (1,res_tensor)
 
 def t2_minus(sigma):
@@ -134,7 +134,8 @@ def t2_minus(sigma):
 
 def t2_minus_tensor(sigma_tensor):
     res_tensor=sigma_tensor.clone()
-    res_tensor[:,0]+=res_tensor[:,0]-1
+    
+    res_tensor[:,0]+=-1
     return (1,res_tensor)
 
 def t3_plus(sigma):
@@ -143,7 +144,7 @@ def t3_plus(sigma):
 
 def t3_plus_tensor(sigma_tensor):
     res_tensor=sigma_tensor.clone()
-    res_tensor[:,1]+=res_tensor[:,1]+1
+    res_tensor[:,1]+=1
     return (1,res_tensor)
 
 def t3_minus(sigma):
@@ -152,7 +153,8 @@ def t3_minus(sigma):
 
 def t3_minus_tensor(sigma_tensor):
     res_tensor=sigma_tensor.clone()
-    res_tensor[:,1]+=res_tensor[:,1]-1
+    res_tensor[:,1]+=-1
+
     return (1,res_tensor)
 
     

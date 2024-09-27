@@ -1150,17 +1150,21 @@ if __name__ == "__main__":
     test_tensor_states=make_basis_tensors(shell_basis_dicts)
     
 
-    test_new,_=tpp_from_tensor(state_list=shell_basis_dicts,tensor_list=test_tensor_states,pauli_dic={0:p0,1:qky_tensor,2:py,3:p0},prefactor=1,track_time=True)
-    tpp_old=tpp(shell_basis_dicts,{0:p0,1:qky,2:py,3:p0},1)
+    test_new,_=tpp_from_tensor(state_list=shell_basis_dicts,tensor_list=test_tensor_states,pauli_dic={0:px,1:t3_plus_tensor,2:p0,3:p0},prefactor=1,track_time=True)
+    tpp_old=tpp(shell_basis_dicts,{0:px,1:t3_plus,2:p0,3:p0},1)
     
-    # print(f'q0 block: {test_new[:4,:4]}')
-    # print(f'q0 block old: {tpp_old[:4,:4]}')
+    print(f'q0 block: {test_new[:4,12:16]}')
+    #print(f'tensor new {np.nonzero(test_new)}')
+    #print(f'all zeros new {np.allclose(test_new,0)}')
+    
+    print(f'q0 block old: {tpp_old[:4,12:16]}')
 
-    # print(f' q1 block: \n {test_new[12:16,12:16]}')
+    # print(f' q1 block: \n {test_new[12:16,:4]}')
     # print(f'q1 block old: \n  {tpp_old[12:16,12:16]}')
 
-    # print(f'same? {np.allclose(test_new,tpp_old)}')
-    # exit()
+    print(f'same? {np.allclose(test_new,tpp_old)}')
+    print(f'type tpp tensor {type(test_new)}')
+    exit()
 
     # teststate=shell_basis_dicts[0]
     # print(f'eyepreservation for state: {eyepreservation(teststate)}')
@@ -1173,35 +1177,35 @@ if __name__ == "__main__":
     # construct_templates(dir_path=dir_path,term_list_dic=term_list_dic,term_number=1,basis_state_list=shell_basis_dicts,basis_tensor=test_tensor_states,make_all=True,make_int=False)
     # exit()
 
-    for i in range(16):
-        print(f'qdjust index {i}')
-        dir0='tun'
-        particles1=particle_no
-        saved_mat_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles1}particles_{shells_used}shells_center{center}_matrices/{dir0}/{dir0}_{i}.dill"
-        saved_mat_path_old=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/matrix_templates/1particles_2shells_centerK_matrices_new/ham_terms/{dir0}/{dir0}_{i}.dill"
-        # print(f'q3 kx {v*qvecs[1][0]}')
+    # for i in range(16):
+    #     print(f'qdjust index {i}')
+    #     dir0='tun'
+    #     particles1=particle_no
+    #     saved_mat_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles1}particles_{shells_used}shells_center{center}_matrices/{dir0}/{dir0}_{i}.dill"
+    #     saved_mat_path_old=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/matrix_templates/1particles_2shells_centerK_matrices_new/ham_terms/{dir0}/{dir0}_{i}.dill"
+    #     # print(f'q3 kx {v*qvecs[1][0]}')
         
-        # print(f'Checking matrix {dir0}, {i}')
-        test_matrix_tensor=load_matrices([saved_mat_path])
-        #print(f'test matrix shape {test_matrix_tensor.shape}')
-        #print(f'sample test matrix new \n {test_matrix_tensor[12:16,12:16]}')
-        #print(f'sample new /npsin \n {test_matrix_tensor[12:16,12:16]/np.sin(theta/2)}')
-        test_matrix_old=load_matrices([saved_mat_path_old])
-        #print(f'sample test matrix old \n {test_matrix_old[12:16,12:16]}')
-        print(f'same? {np.allclose(test_matrix_tensor,test_matrix_old)}')
-    exit()
+    #     # print(f'Checking matrix {dir0}, {i}')
+    #     test_matrix_tensor=load_matrices([saved_mat_path])
+    #     #print(f'test matrix shape {test_matrix_tensor.shape}')
+    #     #print(f'sample test matrix new \n {test_matrix_tensor[12:16,12:16]}')
+    #     #print(f'sample new /npsin \n {test_matrix_tensor[12:16,12:16]/np.sin(theta/2)}')
+    #     test_matrix_old=load_matrices([saved_mat_path_old])
+    #     #print(f'sample test matrix old \n {test_matrix_old[12:16,12:16]}')
+    #     print(f'same? {np.allclose(test_matrix_tensor,test_matrix_old)}')
+    # exit()
 
     # with open(filename,'rb') as f:
     #     test_matrix_object=dill.load(f)
     
     
-    # HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=2)
-    # print(HkA.shape)
-    # print(f'sample {HkA[:4,:4]}')
+    HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=2)
+    print(HkA.shape)
+    print(f'sample {HkA[:4,:4]}')
 
-    # HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=2)
-    # print(HKA2.shape)
-    # print(f'sample old {HKA2[:4,:4]}')
-    #print(np.allclose(HkA,HKA2))
+    HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=2)
+    print(HKA2.shape)
+    print(f'sample old {HKA2[:4,:4]}')
+    print(np.allclose(HkA,HKA2))
 
 

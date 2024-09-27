@@ -1773,4 +1773,9 @@ def check_template_exists():
     return None
 
 if __name__ == "__main__":
-    pass
+    particles=particle_no
+    shells=shells_used
+    shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particles,nonlayer=testnonlayer,center=center)
+
+    dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/matrix_templates/{particles}particles_{shells}shells_center{center}_matrices/ham_terms"
+    construct_templates(dir_path=dir_path,term_list_dic=term_list_dic,term_number=1,make_all=True,make_int=False)

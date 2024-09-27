@@ -58,7 +58,7 @@ def make_template_matrices(kx_list,ky_list,kind_list,tun_list,HK_list):
 
 
 def gen_Hk2(kx,ky,particles_used):
-    template_matrix_dir=f'../large_files/matrix_templates/{particles_used}particles_{shells_used}shells_center{center}_matrices_new/ham_terms'
+    template_matrix_dir=f'../large_files/matrix_templates/{particles_used}particles_{shells_used}shells_center{center}_matrices/ham_terms'
     filelist_kx,filelist_ky,filelist_kind,filelist_tun,HK_list=find_template_dirs(template_matrix_dir,particles_used,shells_used,center)
     non_int_templates,HK_matrix=make_template_matrices(kx_list=filelist_kx,ky_list=filelist_ky,kind_list=filelist_kind,tun_list=filelist_tun,HK_list=HK_list)
     
@@ -84,7 +84,20 @@ def gen_Hk2_tensor(kx,ky,particles_used):
             H1=pair[0](kx,ky)*pair[1]
             first=False
         else:
-            H1=H1+pair[0](kx,ky)*pair[1]
+            test_mat=pair[0](kx,ky)
+            test_coeff=pair[1]
+            # print(f'type test_mat {test_mat}')
+            # print(f'test mat shape {test_mat.shape}')
+            # print(f'test coeff shape {test_coeff.shape}')
+            # exit()
+            # print(f'pair 0 shape {pair[0](kx,ky).shape}')
+            # print(f'pair 1 shape {pair[0](kx,ky).shape}')
+            
+            
+            
+            H1 = H1 + (pair[1] * pair[0](kx,ky))
+            
+            
     H1=H1+HK_matrix
     return H1
 
