@@ -30,6 +30,7 @@ import torch
 import copy
 
 from base_classes import saved_template_matrix
+import load_templates
 
 from base_functions import *
 import cProfile
@@ -193,35 +194,6 @@ def eyepreservation(state):#Leave this at three states
         helpful_string=helpful_string+';'
     return helpful_string
 
-def px(sigma):
-    sigma_pair=(1,(sigma+1)%2)
-    return sigma_pair
-def py(sigma):
-    sigma_pair=((1j)*((-1)**(sigma)),(sigma+1)%2)
-    return sigma_pair
-def pz(sigma):
-    sigma_pair=((-1)**(sigma),sigma)
-    return sigma_pair
-def p0(sigma):
-    return (1,sigma)
-def pexpz(sigma):
-    sigma_exp=(-1)**(sigma)
-    return (np.exp(1j*np.pi*sigma_exp/4),sigma)
-
-def pexpz3(sigma):
-    sigma_exp=(-1)**(sigma)
-    return (np.exp(1j*2*np.pi*sigma_exp/3),sigma)
-
-def pexpz6(sigma):
-    sigma_exp=(-1)**(sigma)
-    return (np.exp(1j*2*np.pi*sigma_exp/6),sigma)
-
-def qkx(sigma):
-    q=sigma[0]*qvecs[0]+sigma[1]*qvecs[1]
-    return (q[0],sigma)
-def qky(sigma):
-    q=sigma[0]*qvecs[0]+sigma[1]*qvecs[1]
-    return (q[1],sigma)
 
 def flatten(l):
     return [item for sublist in l for item in sublist]
@@ -613,111 +585,7 @@ def inspect_elements(matrix,state_list,state_array=None):
         
 
 
-#Now let's build up the tunnelling matrices
-def t1_plus(sigma):
-    newsigma=(sigma[0]-1,sigma[1]-1)#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
-    return (1,newsigma)
-def t1_plus_tensor(sigma_tensor):
-    res_tensor=sigma_tensor.clone()
-    res_tensor=sigma_tensor-1
-    return (1,res_tensor)
 
-#Now let's build up the tunnelling matrices
-def t1_minus(sigma):
-    newsigma=(sigma[0]+1,sigma[1]+1)#i.e this is equivalent to subtracting q1 from the state. - I guess this is not good, because you're not tying it to your definition of the qs!
-    return (1,newsigma)
-
-def t1_minus_tensor(sigma_tensor):
-    res_tensor=sigma_tensor.clone()
-    res_tensor=sigma_tensor+1
-    return (1,res_tensor)
-
-def t2_plus(sigma):
-    newsigma=(sigma[0]+1,sigma[1])#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
-    return (1,newsigma)
-
-def t2_plus_tensor(sigma_tensor):
-    res_tensor=sigma_tensor.clone()
-    res_tensor+=res_tensor[:,0]+1
-    return (1,res_tensor)
-
-def t2_minus(sigma):
-    newsigma=(sigma[0]-1,sigma[1])#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
-    return (1,newsigma)
-
-def t2_minus_tensor(sigma_tensor):
-    res_tensor=sigma_tensor.clone()
-    res_tensor-=res_tensor[:,0]-1
-    return (1,res_tensor)
-
-def t3_plus(sigma):
-    newsigma=(sigma[0],sigma[1]+1)#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
-    return (1,newsigma)
-
-def t3_plus_tensor(sigma_tensor):
-    res_tensor=sigma_tensor.clone()
-    res_tensor+=res_tensor[:,1]+1
-    return (1,res_tensor)
-
-def t3_minus(sigma):
-    newsigma=(sigma[0],sigma[1]-1)#i.e this is equivalent to adding q1 to the state. - I guess this is not good, because you're not tying it to your definition of the qs!
-    return (1,newsigma)
-
-def t3_minus_tensor(sigma_tensor):
-    res_tensor=sigma_tensor.clone()
-    res_tensor-=res_tensor[:,1]-1
-    return (1,res_tensor)
-
-    
-
-
-#sigma is here understood to be the pair of q states.
-def t0(sigma):
-    return (1,sigma)
-
-def tz(sigma):
-    return ((2*sigma[0]+3*sigma[1])%6,sigma)
-
-def tqx(sigma,qs=qvecs):
-    q=sigma[0]*qs[0]+sigma[1]*qs[1]
-    qx=q[0]
-    
-    return (-qx,sigma)#Note - sign because it's k-Q
-
-def tqx_tensor(sigma_tensor,qs=qvecs):
-
-    
-    res_tensor=torch.complex(sigma_tensor.float(),torch.zeros_like(sigma_tensor).float())
-    qs=torch.complex(torch.tensor(qs).float(),torch.zeros_like(torch.tensor(qs).float()))
-    res_tensor=res_tensor@torch.tensor(qs)
-    
-    
-    #Because you're goinf to take the product of the coeffs over both dof entries
-    qx_tensor=torch.ones_like(res_tensor)
-    qx_tensor[:,0]=-res_tensor[:,0]
-
-    
-    return (qx_tensor,sigma_tensor)
-
-
-def tqy(sigma,qs=qvecs):
-    q=sigma[0]*qs[0]+sigma[1]*qs[1]
-    qy=q[1]
-    
-    return (-qy,sigma)#Note - sign because it's k-Q
-
-def tqy_tensor(sigma_tensor,qs=qvecs):
-    res_tensor=torch.complex(sigma_tensor.float(),torch.zeros_like(sigma_tensor).float())
-    qs=torch.complex(torch.tensor(qs).float(),torch.zeros_like(torch.tensor(qs).float()))
-    res_tensor=res_tensor@torch.tensor(qs)
-    
-    
-    #Because you're goinf to take the product of the coeffs over both dof entries
-    qy_tensor=torch.ones_like(res_tensor)
-    qy_tensor[:,1]=-res_tensor[:,1]
-
-    
-    return (qy_tensor,sigma_tensor)
 
 
 
@@ -745,287 +613,194 @@ def tqproj3(sigma):
     else:
         return (0,sigma)
 
+def find_matching_indices(A, B):
+    # A: N x m x d
+    # B: N x m x m x d
+    N, m, d = A.shape
+    matching_indices = []
 
+    # Sort rows of each mxd tensor in A to treat them as sets
+    sorted_A = torch.sort(A, dim=1)[0]  # Sort rows along the m dimension
 
+    for i in range(N):
+        a_sorted_rows = sorted_A[i]  # Nth mxd tensor in A sorted by rows
 
-if __name__ == "__main__":
-    shells=2
-    particles=2
-    center='Gamma'
-    shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particles,nonlayer=testnonlayer,center=center)
-    print(f'Number of basis states: {len(shell_basis_dicts)}')
+        for j in range(m):
+            # Sort the rows of the mxd tensor B[i, j]
+            b_sorted_rows = torch.sort(B[i, j], dim=1)[0]
 
-    teststate=shell_basis_dicts[0]
-    print(f'eyepreservation for state: {eyepreservation(teststate)}')
-    print(f'list of state dics:')
-    print(vars(teststate))
-    print(teststate.particle_dic.keys())
-    print([vars(teststate.particle_dic[x]) for x in teststate.particle_dic.keys()])
-
-    def all_elements_component(state_list):
-        particle_dof_keys=state_list[0].particle_dic[1].dof_dic.keys()
-        dofs_values={x:[] for x in particle_dof_keys}
-        
-       
-        for dof_key in dofs_values.keys():
-            dofs_list = [particleobj.dof_dic[dof_key] for state in state_list for particleobj in state.particle_dic.values()]
-            dofs_set=list(set(dofs_list))
-            dofs_values[dof_key]=dofs_set
-        
-        return dofs_values
-
-    #Let's test constructing the tensor
-
-    def make_basis_tensors(state):
-        tensor_list=[]
-        for particle_key in state.particle_dic.keys():
-            particle_tensor_list=[]
-            for dof_key in state.particle_dic[particle_key].dof_dic.keys():
-                dof_value=state.particle_dic[particle_key].dof_dic[dof_key]
-                if type(dof_value)==int:
-                    particle_tensor_list.append(dof_value)
-                elif type(dof_value)==tuple:
-                    particle_tensor_list.extend(dof_value)
-            tensor_list.append(particle_tensor_list)
-        tensor_array=np.array(tensor_list)
-        return tensor_array
-
-    from concurrent.futures import ThreadPoolExecutor
+            # Compare the sorted row tensors (row-order-agnostic comparison)
+            if torch.equal(a_sorted_rows, b_sorted_rows):
+                matching_indices.append((i, j))
     
-    def process_particle(particle):
-        particle_tensor_list = []
-        for dof_value in particle.dof_dic.values():
-            if isinstance(dof_value, int):
-                particle_tensor_list.append(dof_value)
-            elif isinstance(dof_value, tuple):
-                particle_tensor_list.extend(dof_value)
-        return particle_tensor_list
+    return matching_indices
 
-    def make_state_tensors(state):
-        particle_keys = sorted(state.particle_dic.keys())  # Sort keys to ensure the order
-        with ThreadPoolExecutor() as executor:
-            tensor_list = list(executor.map(process_particle, 
-                                            (state.particle_dic[key] for key in particle_keys)))
-        return np.array(tensor_list)
+def find_mapped_tensor(input_tensor,output_tensor):
     
-    def make_basis_tensors(states):
-        with ThreadPoolExecutor() as executor:
-            # Parallel processing of each state
-            all_tensor_lists = list(executor.map(make_state_tensors, states))
-            
-        # Flatten the results: Combine tensors from all states into one large array
-        return np.array(all_tensor_lists)
-                    
-        
-        # for particle_key in teststate.particle_dic.keys():
-        #     for dof_key in teststate.particle_dic[particle_key].dof_dic.keys():
-                        
-        
-        # state_object
-        # components_dict=all_elements_component(state_list)
-        # tensor_component_list=[]
+    # Step 1: Sort along the n-axis for each tensor along the d-axis
+    A_sorted = torch.sort(input_tensor, dim=1)[0]
+    B_sorted = torch.sort(output_tensor, dim=1)[0]
 
-        # for component in components_dict.keys():
-        #     if type(components_dict[component][0])==int:
-        #         tensor_component_list.append()
-        #     elif type(components_dict[component][0])==tuple:
-        #         tensor_component_list.append(len(components_dict[component]))
-        #         tuple_length=len(components_dict[component][0])
+    # Step 2: Compare each sorted tensor in A_sorted with all tensors in B_sorted
+    A_expanded = A_sorted.unsqueeze(1)  # Shape: (N, 1, n, d)
+    B_expanded = B_sorted.unsqueeze(0)  # Shape: (1, N, n, d)
 
+    print(f'A expanded shape: {A_expanded.shape}')
+    print(f'B expanded shape: {B_expanded.shape}')
 
-        
-        
-    test_tensor_states=make_basis_tensors(shell_basis_dicts)
-    print(test_tensor_states.shape)
-    #all_elements_component(shell_basis_dicts)
+    # Perform element-wise comparison and reduce across the n-axis and d-axis
+    comparison = (A_expanded == B_expanded).all(dim=-1).all(dim=-1)  # Shape: (N, N)
     
-    def find_matching_indices(A, B):
-        # A: N x m x d
-        # B: N x m x m x d
-        N, m, d = A.shape
-        matching_indices = []
+    # Step 3: Find the indices where there is a match
+    # We can use nonzero to get the matching indices
+    matching_indices = comparison.nonzero(as_tuple=False)  # Shape: (num_matches, 2)
 
-        # Sort rows of each mxd tensor in A to treat them as sets
-        sorted_A = torch.sort(A, dim=1)[0]  # Sort rows along the m dimension
+    # `matching_indices` will contain pairs of indices (i, j)
+    # where A_sorted[i] matches B_sorted[j]
 
-        for i in range(N):
-            a_sorted_rows = sorted_A[i]  # Nth mxd tensor in A sorted by rows
-
-            for j in range(m):
-                # Sort the rows of the mxd tensor B[i, j]
-                b_sorted_rows = torch.sort(B[i, j], dim=1)[0]
-
-                # Compare the sorted row tensors (row-order-agnostic comparison)
-                if torch.equal(a_sorted_rows, b_sorted_rows):
-                    matching_indices.append((i, j))
-        
-        return matching_indices
+    # To return a list of tuples:
+    #matching_indices_list = [(i.item(), j.item()) for i, j in matching_indices]
     
-    def find_mapped_tensor(input_tensor,output_tensor):
-        
-        # Step 1: Sort along the n-axis for each tensor along the d-axis
-        A_sorted = torch.sort(input_tensor, dim=1)[0]
-        B_sorted = torch.sort(output_tensor, dim=1)[0]
+    return matching_indices
 
-        # Step 2: Compare each sorted tensor in A_sorted with all tensors in B_sorted
-        A_expanded = A_sorted.unsqueeze(1)  # Shape: (N, 1, n, d)
-        B_expanded = B_sorted.unsqueeze(0)  # Shape: (1, N, n, d)
+def find_permutation_equivalents(A, B):
+    # Sort the rows of each nxd tensor in A and B along the second dimension (rows)
+    A_sorted = torch.sort(A, dim=1)[0]  # Sort each nxd tensor by rows
+    B_sorted = torch.sort(B, dim=1)[0]
 
-        print(f'A expanded shape: {A_expanded.shape}')
-        print(f'B expanded shape: {B_expanded.shape}')
-
-        # Perform element-wise comparison and reduce across the n-axis and d-axis
-        comparison = (A_expanded == B_expanded).all(dim=-1).all(dim=-1)  # Shape: (N, N)
-        
-        # Step 3: Find the indices where there is a match
-        # We can use nonzero to get the matching indices
-        matching_indices = comparison.nonzero(as_tuple=False)  # Shape: (num_matches, 2)
-
-        # `matching_indices` will contain pairs of indices (i, j)
-        # where A_sorted[i] matches B_sorted[j]
-
-        # To return a list of tuples:
-        #matching_indices_list = [(i.item(), j.item()) for i, j in matching_indices]
-        
-        return matching_indices
+    # Compare the sorted tensors element-wise
+    matches = (A_sorted == B_sorted).all(dim=(1, 2))  # Compare over the last two dimensions (n, d)
     
-    def find_permutation_equivalents(A, B):
-        # Sort the rows of each nxd tensor in A and B along the second dimension (rows)
-        A_sorted = torch.sort(A, dim=1)[0]  # Sort each nxd tensor by rows
-        B_sorted = torch.sort(B, dim=1)[0]
-
-        # Compare the sorted tensors element-wise
-        matches = (A_sorted == B_sorted).all(dim=(1, 2))  # Compare over the last two dimensions (n, d)
-        
-        # Find the indices where A tensors match with B tensors
-        matching_indices = matches.nonzero(as_tuple=True)[0]  # Indices of matching tensors
-        
-        return matching_indices
+    # Find the indices where A tensors match with B tensors
+    matching_indices = matches.nonzero(as_tuple=True)[0]  # Indices of matching tensors
     
-    def count_zeros(tensor):
-        N,n,_=tensor.shape
-        zero_mask = (tensor == 0)
+    return matching_indices
 
-        # Count the number of zeros in each mxm tensor
-        zero_counts = zero_mask.sum(dim=(1, 2))  # NxNx tensor, where each element is the count of zeros in the corresponding mxm tensor
+def count_zeros(tensor):
+    N,n,_=tensor.shape
+    zero_mask = (tensor == 0)
 
-        # Find indices where the count of zeros is exactly m
-        indices = (zero_counts == n).nonzero(as_tuple=True)
-        
-        
+    # Count the number of zeros in each mxm tensor
+    zero_counts = zero_mask.sum(dim=(1, 2))  # NxNx tensor, where each element is the count of zeros in the corresponding mxm tensor
 
-        return indices
+    # Find indices where the count of zeros is exactly m
+    indices = (zero_counts == n).nonzero(as_tuple=True)
     
-    def find_matches(result_tensor,basis_tensor):
-        matched_indices=[]
-        start_indices=[]
-        #Can insert prep code here like finding the row sums etc to cut down the number of states you need to compare.
+    
 
-        N,n,n,d=result_tensor.shape
-        for state_index in range(N):
-            for particle_index in range(n):
-                state_tensor=result_tensor[state_index,particle_index]
-                unique_rows,counts=torch.unique(state_tensor,dim=0,return_counts=True)
-                duplicate_rows = unique_rows[counts > 1]
-                if len(duplicate_rows)>0:
-                    #Could instead append an mxd tensor of all zeros and then exclude those.
-                    continue
-                else:
-                    basis_expanded = basis_tensor.unsqueeze(1)  # Shape becomes (N, 1, m, d)
-                    state_tensor=state_tensor.unsqueeze(0).unsqueeze(2)
-                    row_diffs=state_tensor-basis_expanded
-                    row_diffs=row_diffs.transpose(1,2)
+    return indices
 
-                    sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
-                    # print(f'sum row diffs')
-                    # print(sum_row_diffs[15])
-                    # exit()
-                    zeros=count_zeros(sum_row_diffs)
-                    matched_basis_indices=[z.item() for z in zeros[0]]
-                    
-                    zero_indices=torch.nonzero(sum_row_diffs[zeros]==0)
-                    
-                    #zero_indices_dims= #non-zero index, #particle index, #non zero particle index
-                    index_pairs=zero_indices[:,np.arange(zero_indices.shape[1])]
+def find_matches(result_tensor,basis_tensor):
+    matched_indices=[]
+    start_indices=[]
+    #Can insert prep code here like finding the row sums etc to cut down the number of states you need to compare.
 
-                    permutation_sum=((np.abs(zero_indices[:,1]-zero_indices[:,2]))/2).sum()
-
-                    matched_indices.append((state_index,particle_index,matched_basis_indices,permutation_sum))
-                    # print(f'result state tensor')
-                    # print(state_tensor)
-                    # print(f'comparison basis tensor:')
-                    # print(basis_expanded[15])
-                    # print(f'difference tensor:')
-                    # print(row_diffs[15])
-                    # sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
-                    # print(f'sum row diffs')
-                    # print(sum_row_diffs[15])
-                    # print(f'zero counts')
-                    # zeros=count_zeros(sum_row_diffs)
-                    # print(zeros)
-                    # print(f'inital result state')
-                    # print(state_tensor)
-                    # print(f'claimed matching basis state')
-                    # print(basis_tensor[zeros[0][0]])
-                    # print(f'zero indices: {torch.nonzero(sum_row_diffs[zeros]==0)}')
-                    
-                    
-
-                    # print(f'zero indices: {zero_indices.shape}')
-                    
-                    # print(f'permutation: {zero_indices[:,1].sum()-zero_indices[:,2].sum()}')
-                    
-                                      
-                
-        return matched_indices
-
-
-    def make_H_from_indices(N,matching_indices,coeff_tensor,pauli_dic):
-        H0=np.zeros((N,N),dtype=complex)
-        #Let's first do it in sequence and then we can parrallelize
-        # print(matching_indices)
-        for matched_state in matching_indices:
-            if matched_state[2]==[]:
+    N,n,n,d=result_tensor.shape
+    for state_index in range(N):
+        for particle_index in range(n):
+            state_tensor=result_tensor[state_index,particle_index]
+            unique_rows,counts=torch.unique(state_tensor,dim=0,return_counts=True)
+            duplicate_rows = unique_rows[counts > 1]
+            if len(duplicate_rows)>0:
+                #Could instead append an mxd tensor of all zeros and then exclude those.
                 continue
             else:
-                coeff_res=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:]
+                basis_expanded = basis_tensor.unsqueeze(1)  # Shape becomes (N, 1, m, d)
+                state_tensor=state_tensor.unsqueeze(0).unsqueeze(2)
+                row_diffs=state_tensor-basis_expanded
+                row_diffs=row_diffs.transpose(1,2)
 
-                # print(f'matched state: {test_tensor_states[matched_state[0]]}')
-                # print(f'initial state: {matched_state[0]}')
-                # print(f'particle index: {matched_state[1]}')
-                # print(f'matched basis states: {test_tensor_states[matched_state[2]]}')
-                # print(f'coeff tensor: {coeff_res}')
-                # print(f' coeff {torch.prod(coeff_res)}')
-                # print(f'permutation sum: {matched_state[-1]}')
+                sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
+                # print(f'sum row diffs')
+                # print(sum_row_diffs[15])
                 # exit()
+                zeros=count_zeros(sum_row_diffs)
+                matched_basis_indices=[z.item() for z in zeros[0]]
                 
-                coeff=torch.prod(coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:],axis=-1)
-                #coeff=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],4]
-                H0[matched_state[2][0],matched_state[0]]=H0[matched_state[2][0],matched_state[0]]+1*((-1)**(matched_state[-1].item()))*coeff#will change with pauli action
-        return H0
-    
-    def time_it(func):
-        def wrapper(*args, **kwargs):
-            if kwargs.get('track_time', False):
-                timing_info = {}  # Dictionary to store sub-function runtimes
-                def timed_func(func_to_time, func_name, *args):
-                    start_time = time.time()
-                    result = func_to_time(*args)
-                    end_time = time.time()
-                    elapsed_time = end_time - start_time
-                    timing_info[func_name] = elapsed_time
-                    return result
+                zero_indices=torch.nonzero(sum_row_diffs[zeros]==0)
+                
+                #zero_indices_dims= #non-zero index, #particle index, #non zero particle index
+                index_pairs=zero_indices[:,np.arange(zero_indices.shape[1])]
 
-                # Replace original function calls with timed ones
-                result = func(timed_func, *args, **kwargs)
-                return result, timing_info  # Return result and timing info
-            else:
-                # Call the original function without timing
-                return func(*args, **kwargs)
-        return wrapper
-    
-    @time_it
-    def tpp_from_tensor(timed_func,state_list,tensor_list,pauli_dic,prefactor,**kwargs):
+                permutation_sum=((np.abs(zero_indices[:,1]-zero_indices[:,2]))/2).sum()
+
+                matched_indices.append((state_index,particle_index,matched_basis_indices,permutation_sum))
+                # print(f'result state tensor')
+                # print(state_tensor)
+                # print(f'comparison basis tensor:')
+                # print(basis_expanded[15])
+                # print(f'difference tensor:')
+                # print(row_diffs[15])
+                # sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
+                # print(f'sum row diffs')
+                # print(sum_row_diffs[15])
+                # print(f'zero counts')
+                # zeros=count_zeros(sum_row_diffs)
+                # print(zeros)
+                # print(f'inital result state')
+                # print(state_tensor)
+                # print(f'claimed matching basis state')
+                # print(basis_tensor[zeros[0][0]])
+                # print(f'zero indices: {torch.nonzero(sum_row_diffs[zeros]==0)}')
+                
+                
+
+                # print(f'zero indices: {zero_indices.shape}')
+                
+                # print(f'permutation: {zero_indices[:,1].sum()-zero_indices[:,2].sum()}')
+                
+                                    
+            
+    return matched_indices
+
+
+def make_H_from_indices(N,matching_indices,coeff_tensor,pauli_dic):
+    H0=np.zeros((N,N),dtype=complex)
+    #Let's first do it in sequence and then we can parrallelize
+    # print(matching_indices)
+    for matched_state in matching_indices:
+        if matched_state[2]==[]:
+            continue
+        else:
+            coeff_res=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:]
+
+            # print(f'matched state: {test_tensor_states[matched_state[0]]}')
+            # print(f'initial state: {matched_state[0]}')
+            # print(f'particle index: {matched_state[1]}')
+            # print(f'matched basis states: {test_tensor_states[matched_state[2]]}')
+            # print(f'coeff tensor: {coeff_res}')
+            # print(f' coeff {torch.prod(coeff_res)}')
+            # print(f'permutation sum: {matched_state[-1]}')
+            # exit()
+            
+            coeff=torch.prod(coeff_tensor[matched_state[0],matched_state[1],matched_state[1],:],axis=-1)
+            #coeff=coeff_tensor[matched_state[0],matched_state[1],matched_state[1],4]
+            H0[matched_state[2][0],matched_state[0]]=H0[matched_state[2][0],matched_state[0]]+1*((-1)**(matched_state[-1].item()))*coeff#will change with pauli action
+    return H0
+
+def time_it(func):
+    def wrapper(*args, **kwargs):
+        if kwargs.get('track_time', False):
+            timing_info = {}  # Dictionary to store sub-function runtimes
+            def timed_func(func_to_time, func_name, *args):
+                start_time = time.time()
+                result = func_to_time(*args)
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                timing_info[func_name] = elapsed_time
+                return result
+
+            # Replace original function calls with timed ones
+            result = func(timed_func, *args, **kwargs)
+            return result, timing_info  # Return result and timing info
+        else:
+            # Call the original function without timing
+            return func(*args, **kwargs)
+    return wrapper
+
+@time_it
+def tpp_from_tensor(timed_func,state_list,tensor_list,pauli_dic,prefactor,**kwargs):
+    with torch.no_grad():
         N,n,d=tensor_list.shape
         px_tensor=torch.zeros((N,n,n,d),dtype=torch.int)
         
@@ -1044,17 +819,7 @@ if __name__ == "__main__":
         # Repeat A_expanded along the new dimension to get shape (N, m, m, d)
         input_repeated = res_expanded.repeat(1, 1, n, 1)
         input_repeated.transpose_(1,2)
-
         
-        res_repeated = input_repeated.clone()
-        print(f'input original')
-        print(res_repeated[:1])
-
-
-        res_repeated[:,:,:,3]=(input_repeated[:,:,:,3]+px_tensor[:,:,:,3])%2
-        print(f'output original')
-        print(res_repeated[:1])
-
         def pauli_action(pauli_dic,basis_tensor):
             input_tensor=basis_tensor.clone()
             input_expanded = input_tensor.unsqueeze(2)  # Shape: (N, m, 1, d)
@@ -1087,158 +852,356 @@ if __name__ == "__main__":
                     else:
                         dof_key=pauli_dic_key+1
                         res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
-                        res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]
-            # print('input states:')
-            # print(res_states[:1])
-                
-            #res_states[:,:,:,4]=res_states[:,:,:,4]#+plus_tensor[:,:,:,4]
-            # print('output states:')
-            # print(res_states[:1])
-            # exit()
-            #res_coeff=res_coeff+pmask*pauli_dic[3](res_states)[1]
-            
-            
-            
-
-            
+                        res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]        
             
             return res_states,res_coeff
         
 
         test_states,test_coeff=pauli_action(pauli_dic,tensor_list_torch)
 
-        #print(f'test states shape: {test_states.shape}')
-        #print(f'test coeff shape: {test_coeff.shape}')
-
-        #print(f'states equal: {torch.allclose(test_states,res_repeated)}')
-
-        
-
-        #matching_indices=timed_func(find_matches,"find_matches",res_repeated,tensor_list_torch)
         matching_indices=timed_func(find_matches,"find_matches",test_states,tensor_list_torch)
 
-
-
-        #input_tensor_index=3
-        #print(f'starting state:')
-        #print(tensor_list_torch[matching_indices[input_tensor_index][0]])
-        #print(f'matching state:,particle acted on: {matching_indices[input_tensor_index][1]}')
-        #print(tensor_list_torch[matching_indices[input_tensor_index][2]])
-        #print(f'permutation sum: {matching_indices[input_tensor_index][3]}')
-        #print(f'permutations sums: {[matching_indices[x][3] for x in range(len(matching_indices))]}')
-
-
-
         res_H=timed_func(make_H_from_indices,"make_H_from_indices",N,matching_indices,test_coeff,pauli_dic)
-        return res_H
-    
-
-    test_pauli_dic={0:p0,1:tqy_tensor,2:pz,3:pz}
-    #need to check if px will work with non-trivial momentum transformations
-    test_tensor,_=tpp_from_tensor(shell_basis_dicts,test_tensor_states,test_pauli_dic,1,track_time=True)
-    #print(f'test tensor shape: {test_tensor.shape}')
-    
-    
-    test_old=tpp(shell_basis_dicts,{0:p0,1:tqy,2:pz,3:pz},1)
-    #print(f'non zero states same?: {np.allclose(np.nonzero(test_tensor),np.nonzero(test_old))}')
-    print(f'which states are non zero?: {np.nonzero(test_tensor-test_old)[0].shape}')
-    print(f'abs value same?: {np.allclose(np.abs(test_tensor),np.abs(test_old))}')
-    
-    print(f'same result: {np.allclose(test_tensor,test_old)}')
-    print(f'tranpsoe same result: {np.allclose(test_tensor.T,test_old)}')
-    print(f'hermitian conjugate same result: {np.allclose(test_tensor.T.conj(),test_old)}')
-
-    exit()
-
-    def runtime_comparison(new_func,old_func,particle_range):
-        fig=make_subplots(rows=1,cols=1)
-        old_runtimes=[]
-        new_runtimes=[]
-        truth=[]
-        for p_count in tqdm(particle_range):
-            shells=2
-            particles=p_count
-            center='gamma'
-            shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particles,nonlayer=testnonlayer,center=center)
-            test_tensor_states=make_basis_tensors(shell_basis_dicts)
-            
-            
-            test_new,test_times=new_func(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1,track_time=True)
-            # for key in test_times.keys():
-            #     new_runtimes.append(test_times[key])
-            new_runtimes.append([test_times[k] for k in sorted(test_times.keys())])
-
-            start=time.time()
-            test_old=old_func(shell_basis_dicts,{0:p0,1:t0,2:p0,3:px},1)
-            end=time.time()
-            old_runtimes.append(end-start)
-            truth.append(np.allclose(test_new,test_old))
-            
+    return res_H
 
 
+def runtime_comparison(new_func,old_func,particle_range):
+    fig=make_subplots(rows=1,cols=1)
+    old_runtimes=[]
+    new_runtimes=[]
+    truth=[]
+    for p_count in tqdm(particle_range):
+        shells=2
+        particles=p_count
+        center='gamma'
+        shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particles,nonlayer=testnonlayer,center=center)
+        test_tensor_states=make_basis_tensors(shell_basis_dicts)
+        
+        
+        test_new,test_times=new_func(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1,track_time=True)
+        # for key in test_times.keys():
+        #     new_runtimes.append(test_times[key])
+        new_runtimes.append([test_times[k] for k in sorted(test_times.keys())])
 
-        fig.add_trace(go.Scatter(x=np.arange(1,len(old_runtimes)+1),y=old_runtimes,mode='lines',name='Old method'),row=1,col=1)
-        fig.add_trace(go.Scatter(x=np.arange(1,len(new_runtimes)+1),y=np.array(new_runtimes).sum(axis=1),mode='lines',name='New method'),row=1,col=1)       
-        fig.update_layout(title_text=f'Comparison of old and new methods for tpp, same result:{truth} ',showlegend=True)
-        fig.show()
+        start=time.time()
+        test_old=old_func(shell_basis_dicts,{0:p0,1:t0,2:p0,3:px},1)
+        end=time.time()
+        old_runtimes.append(end-start)
+        truth.append(np.allclose(test_new,test_old))
         
 
 
-    #To improve the runtime further, I want to try to parrallelize the outer N, and break that up into chunks so that this can work 
-    #for larger systems
 
-    #But first let me finish the pauli code so that it works for an arbitrary matrix
-
-
-    #OK 
-
-
-    # print(cProfile.run('tpp(shell_basis_dicts,{0:p0,1:t0,2:px,3:p0},1)'))
-    # print(cProfile.run('tpp_from_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:px,3:p0},1)'))
-    exit()
-        
-    
-    
-
-    def tpp_performance_metrics(tpp_func,tpp_func_kwargs_dict,particle_range):
-        construction_times=[]
-        frac_nonzero=[]
-        memory=[]
-        for particle_nos in particle_range:
-            print(f'Making {particle_nos} particle matrix')
-            shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particle_nos,nonlayer=testnonlayer,center=center)
-            H1=tpp_func(shell_basis_dicts,**tpp_func_kwargs_dict)
-            frac_nonzero.append(np.count_nonzero(H1)/np.prod(H1.shape))
-            memory.append(H1.nbytes/1024/1024) #In MB
-            start=time.time()
-            H1=tpp_func(shell_basis_dicts,**tpp_func_kwargs_dict)
-            end=time.time()
-            construction_times.append(end-start)
-        
-
-        return np.array(construction_times).flatten(),np.array(frac_nonzero).flatten(),np.array(memory).flatten()
-        
-    tpp_func=tpp
-    tpp_func_kwargs_dict={'pauli_dic':{0:p0,1:t0,2:px,3:p0},'prefactor':1}
-    particles=np.arange(1,5)
-    construction_times,frac_nonzero,memory=tpp_performance_metrics(tpp_func,tpp_func_kwargs_dict,particles)
-    print(construction_times,frac_nonzero,memory)
-    
-    fig=make_subplots(rows=2,cols=2,specs=[[{"colspan": 2}, None], [{}, {}]],subplot_titles=['Construction times','Fraction of non-zero elements','Memory'])
-    fig.add_trace(go.Scatter(x=particles,y=construction_times,mode='markers',name='Construction times'),row=1,col=1)
-    fig.update_yaxes(title_text='Time (s)',type='log',row=1,col=1)
-
-    fig.add_trace(go.Scatter(x=particles,y=frac_nonzero,mode='markers',name='Fraction of non-zero elements'),row=2,col=1)
-    fig.update_yaxes(title_text='Fraction of non-zero elements',row=2,col=1)
-
-    fig.add_trace(go.Scatter(x=particles,y=memory,mode='markers',name='Memory (MB)'),row=2,col=2)
-    fig.update_yaxes(title_text='Memory (MB)',row=2,col=2)
-
-    fig.update_xaxes(title_text='Number of particles')
-
-    fig.update_layout(title_text='Performance metrics for tpp',showlegend=False)
-
+    fig.add_trace(go.Scatter(x=np.arange(1,len(old_runtimes)+1),y=old_runtimes,mode='lines',name='Old method'),row=1,col=1)
+    fig.add_trace(go.Scatter(x=np.arange(1,len(new_runtimes)+1),y=np.array(new_runtimes).sum(axis=1),mode='lines',name='New method'),row=1,col=1)       
+    fig.update_layout(title_text=f'Comparison of old and new methods for tpp, same result:{truth} ',showlegend=True)
     fig.show()
+        
 
+def tpp_performance_metrics(tpp_func,tpp_func_kwargs_dict,particle_range):
+    construction_times=[]
+    frac_nonzero=[]
+    memory=[]
+    for particle_nos in particle_range:
+        print(f'Making {particle_nos} particle matrix')
+        shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particle_nos,nonlayer=testnonlayer,center=center)
+        H1=tpp_func(shell_basis_dicts,**tpp_func_kwargs_dict)
+        frac_nonzero.append(np.count_nonzero(H1)/np.prod(H1.shape))
+        memory.append(H1.nbytes/1024/1024) #In MB
+        start=time.time()
+        H1=tpp_func(shell_basis_dicts,**tpp_func_kwargs_dict)
+        end=time.time()
+        construction_times.append(end-start)
+    
+
+    return np.array(construction_times).flatten(),np.array(frac_nonzero).flatten(),np.array(memory).flatten()
+
+
+def all_elements_component(state_list):
+    particle_dof_keys=state_list[0].particle_dic[1].dof_dic.keys()
+    dofs_values={x:[] for x in particle_dof_keys}
+    
+    
+    for dof_key in dofs_values.keys():
+        dofs_list = [particleobj.dof_dic[dof_key] for state in state_list for particleobj in state.particle_dic.values()]
+        dofs_set=list(set(dofs_list))
+        dofs_values[dof_key]=dofs_set
+    
+    return dofs_values
+
+#Let's test constructing the tensor
+
+def make_basis_tensors(state):
+    tensor_list=[]
+    for particle_key in state.particle_dic.keys():
+        particle_tensor_list=[]
+        for dof_key in state.particle_dic[particle_key].dof_dic.keys():
+            dof_value=state.particle_dic[particle_key].dof_dic[dof_key]
+            if type(dof_value)==int:
+                particle_tensor_list.append(dof_value)
+            elif type(dof_value)==tuple:
+                particle_tensor_list.extend(dof_value)
+        tensor_list.append(particle_tensor_list)
+    tensor_array=np.array(tensor_list)
+    return tensor_array
+
+from concurrent.futures import ThreadPoolExecutor
+
+def process_particle(particle):
+    particle_tensor_list = []
+    for dof_value in particle.dof_dic.values():
+        if isinstance(dof_value, int):
+            particle_tensor_list.append(dof_value)
+        elif isinstance(dof_value, tuple):
+            particle_tensor_list.extend(dof_value)
+    return particle_tensor_list
+
+def make_state_tensors(state):
+    particle_keys = sorted(state.particle_dic.keys())  # Sort keys to ensure the order
+    with ThreadPoolExecutor() as executor:
+        tensor_list = list(executor.map(process_particle, 
+                                        (state.particle_dic[key] for key in particle_keys)))
+    return np.array(tensor_list)
+
+def make_basis_tensors(states):
+    with ThreadPoolExecutor() as executor:
+        # Parallel processing of each state
+        all_tensor_lists = list(executor.map(make_state_tensors, states))
+        
+    # Flatten the results: Combine tensors from all states into one large array
+    return np.array(all_tensor_lists)
+
+
+
+###################NEED TO REWRITE THE HK_N CODE TO BE IN TENSOR FORM
+def HK_N(state_list,pdic_n,U_N): #need reverse here too? #ONLY APPLICABLE FOR THREE PARTICLES
+    H1=np.zeros((len(state_list),len(state_list)),dtype=complex)
+    for state in state_list:
+        U_count=0
+        list1=list(state.particle_dic.values())
+        list2=list(state.particle_dic.values())
+        temp_H=np.zeros((len(state_list),len(state_list)),dtype=complex)
+        p1count=0
+        for p1 in list1:
+            p1count+=1
+            coeff=1
+            for p2 in list2[p1count:]:
+                initial=True
+                for d in range(dof):#Hardcoded that dof=2!
+                    initial=initial and (p1.dof_dic[d]==pdic_n[d](p2.dof_dic[d])[1])
+                    coeff=coeff*pdic_n[d](p2.dof_dic[d])[0]
+                # initial=initial and (p2.dof_dic[2]==pdic_n[2-1](p1.dof_dic[2])[1])
+                # coeff=coeff*pdic_n[1-1](p1.dof_dic[1])[0]
+                if initial:
+                    U_count+=1
+                    # list2.remove(p1)
+                    # list2.remove(p2)
+                    # list1.remove(p1)
+                    # list1.remove(p2)
+                    position1=(state_list.index(state),state_list.index(state))
+                    temp_H[position1]=U_N*coeff+temp_H[position1]
+        H1=H1+temp_H
+    return H1
+
+def HK_rot(state_list,U_rot): #need reverse here too? #ONLY APPLICABLE FOR THREE PARTICLES
+    H1=np.zeros((len(state_list),len(state_list)),dtype=complex)
+    for state in state_list:
+        down_spins=0
+        for particle in state.particle_dic.keys():
+            down_spins+=state.particle_dic[particle].dof_dic[dof-1]
+        total_spins=len(state.particle_dic)
+        up_spins=total_spins-down_spins
+        coeff=up_spins*down_spins
+        position1=(state_list.index(state),state_list.index(state))
+        H1[position1]=U_rot*coeff+H1[position1]
+    return H1
+#Code for making templates
+############################################################################
+
+def make_matrices(basis_state_list,basis_tensor,pauli_dic,kfunction,variable_names,variable_factors,variable_functions,final_matrix_description):
+    if ((qkx_tensor in pauli_dic.values()) or (qky_tensor in pauli_dic.values())):
+        print('qkx or qky in pauli_dic')
+        matrix,_=tpp_from_tensor(state_list=basis_state_list,tensor_list=basis_tensor,pauli_dic=pauli_dic,prefactor=1,track_time=True)
+        matrix=matrix/torch.sin(torch.tensor(theta)/2)
+    else:
+        matrix,_=tpp_from_tensor(state_list=basis_state_list,tensor_list=basis_tensor,pauli_dic=pauli_dic,prefactor=1,track_time=True)
+    matrix_object=saved_template_matrix(matrix=matrix,kfunction=kfunction,variable_functions=variable_functions,variable_names=variable_names,variable_factors=variable_factors,final_matrix_description=final_matrix_description)
+    #for saving
+    parameterdic={'particles':particle_no,'shells':shells_used,'center':center,'nonlayer':testnonlayer}#angle shouldn't matter
+
+    return matrix_object
+
+def make_matrices_U(state_list,basis_tensor,type,pdic_n,U,final_matrix_description):
+    if type=='HK_N':
+        matrix=HK_N(state_list=state_list,pdic_n=pdic_n,U_N=U)
+        nstring=''
+        for key in sorted(list(pdic_n.keys())):
+            nstring+=f'{pdic_n[key].__name__}'
+        matrix_name='UHK_N_'+nstring
+        print(f' matrix name: {matrix_name}')
+        matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=[matrix_name],variable_factors=[1],final_matrix_description=final_matrix_description)
+    elif type=='HK_rot':
+        matrix=HK_rot(state_list=state_list,U_rot=U)
+        matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=['UHK_rot'],variable_factors=[1],final_matrix_description=final_matrix_description)
+        
+
+def make_each_matrix(term_list,basis_state_list,basis_tensor,dirname,matrix_name,type,term_number):
+    os.makedirs(dirname, exist_ok=True)
+    filename=f'{dirname}/{matrix_name}'
+
+    for i in range(len(term_list)):
+        print(f'i = {i}')
+        start=time.time()
+        if type=='nonint':
+            test_matrix=make_matrices(basis_state_list=basis_state_list,basis_tensor=basis_tensor,pauli_dic=term_list[i][0],kfunction=term_list[i][1],
+            variable_functions=term_list[i][2],variable_names=term_list[i][3],
+            variable_factors=term_list[i][4],final_matrix_description='linear kx non-zero angle')
+
+            
+        elif (type=='HK_N' or type=='HK_rot'):
+            test_matrix=make_matrices_U(state_list=basis_state_list,basis_tensor=basis_tensor,type=type,pdic_n=term_list[i][0],U=1,
+                                        final_matrix_description='linear kx non-zero angle')
+            
+        end=time.time()
+        if len(term_list)>1:
+            with open(filename+'_'+f'{i}'+'.dill', 'wb') as file:
+                pickle.dump(test_matrix, file)
+                print(filename+'_'+f'{i}'+'.dill')
+                #reconstructed_matrix=test_matrix.form_matrix()                
+        else:
+            print(filename+'_'+f'{term_number}'+'.dill')
+            with open(filename+'_'+f'{term_number}'+'.dill', 'wb') as file:
+                pickle.dump(test_matrix, file)
+        
+        
+
+        reconstructed_matrix=test_matrix.form_matrix()
+    
+
+def construct_templates(dir_path,term_list_dic,term_number,basis_state_list,basis_tensor,make_all=True,make_int=True):
+    k0=B#shouldn't matter
+    #dir_path=f'{particle_no}particles_{shells_used}shells_center{center}_matrices_new/kindmatrices_particles{particle_no}_shells{shells_used}_center{center}'
+    #dir_path=f'UHK_N_taux_matrix_particles{particle_no}_shells{shells_used}_center{center}'
+    #print(dir_path)
+    # for the cluster
+    print('start make')
+    
+    print(f'make all {make_all}')
+    
+    if make_all:
+        for term_key in term_list_dic.keys():
+            make_each_matrix(term_list=term_list_dic[term_key][0],basis_state_list=basis_state_list,basis_tensor=basis_tensor,dirname=f'{dir_path}/{term_list_dic[term_key][1]}',matrix_name=term_list_dic[term_key][1],type=term_list_dic[term_key][2],term_number=None)
+    else:
+        #term matching
+        term_counts=[(len(term_list_dic[key][0]),key) for key in term_list_dic.keys()]
+        counts=[term_counts[i][0] for i in range(len(term_counts))]
+        sumcounts=np.array([np.sum(np.array(counts[:i])) for i in range(len(counts))])
+        sumcounts=sumcounts-(term_number-1)
+        print(sumcounts)
+        termindex=np.max(np.where((sumcounts+np.abs(sumcounts))==0)[0])
+        termkey=term_counts[termindex][1]
+        termno=int(np.abs(sumcounts[termindex]))
+        #end term matching
+        make_each_matrix(term_list=[term_list_dic[termkey][0][termno]],basis_state_list=basis_state_list,basis_tensor=basis_tensor,dirname=f'{dir_path}/{term_list_dic[termkey][1]}',matrix_name=term_list_dic[termkey][1],type=term_list_dic[termkey][2],term_number=termno)
+
+
+#loading templates
+
+def load_matrices(filelist):
+    first=True
+    for matrix_file in filelist:
+        #print(matrix_file)
+        if first:
+            with open(matrix_file,'rb') as f:
+                combined_matrix_object=dill.load(f)
+                combined_matrix=combined_matrix_object.form_matrix()
+                del combined_matrix_object
+            first=False
+        else:
+            with open(matrix_file,'rb') as f:
+                temp_matrix_object=dill.load(f)
+            temp_matrix=temp_matrix_object.form_matrix()
+            #print(temp_matrix.shape)
+            del temp_matrix_object
+            combined_matrix=combined_matrix+temp_matrix
+            gc.collect()#To remove the overwritten variable if not done already.
+
+    return combined_matrix
+    
+
+def make_template_files(particle_no,basis_state_list,shell_count,target_terms,name,indiviudal,type):
+    shells_particle=basis_state_list#generate_shell_basis_gamma(shell_count=shell_count,q_vecs=tqs,number_of_particles=particle_no,nonlayer=testnonlayer,center=center)
+    k0=B
+    cluster_arg=int(sys.argv[1])-1
+    dir_path=f'{particle_no}particles_{shells_used}shells_center{center}_matrices/{name}_particles{particle_no}_shells{shell_count}_center{center}'
+    
+    # for the cluster
+    if indiviudal:
+        make_each_matrix(term_list=[target_terms[cluster_arg]],state_list=shells_particle,dirname=dir_path,matrix_name=name,type=type)
+    else:
+        make_each_matrix(term_list=target_terms,state_list=shells_particle,dirname=dir_path,matrix_name=name,type=type)
+
+if __name__ == "__main__":
+    shells=shells_used
+    particles=particle_no
+    center=center
+    shell_basis_dicts=generate_shell_basis_gamma(shell_count=shells,q_vecs=tqs,number_of_particles=particles,nonlayer=testnonlayer,center=center)
+    print(f'Number of basis states: {len(shell_basis_dicts)}')
+    test_tensor_states=make_basis_tensors(shell_basis_dicts)
+    
+
+    # test_new,_=tpp_from_tensor(state_list=shell_basis_dicts,tensor_list=test_tensor_states,pauli_dic={0:p0,1:qky_tensor,2:py,3:p0},prefactor=1,track_time=True)
+    # tpp_old=tpp(shell_basis_dicts,{0:p0,1:qky,2:py,3:p0},1)
+    
+    # print(f'q0 block: {test_new[:4,:4]}')
+    # print(f'q0 block old: {tpp_old[:4,:4]}')
+
+    # print(f' q1 block: \n {test_new[12:16,12:16]}')
+    # print(f'q1 block old: \n  {tpp_old[12:16,12:16]}')
+
+    # print(f'same? {np.allclose(test_new,tpp_old)}')
+    # exit()
+
+    # teststate=shell_basis_dicts[0]
+    # print(f'eyepreservation for state: {eyepreservation(teststate)}')
+    # print(f'list of state dics:')
+    # print(vars(teststate))
+    # print(teststate.particle_dic.keys())
+    # print([vars(teststate.particle_dic[x]) for x in teststate.particle_dic.keys()])
+
+    dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles}particles_{shells}shells_center{center}_matrices"
+    construct_templates(dir_path=dir_path,term_list_dic=term_list_dic,term_number=1,basis_state_list=shell_basis_dicts,basis_tensor=test_tensor_states,make_all=True,make_int=False)
+    exit()
+
+    # for i in range(4):
+    #     print(f'qdjust index {i}')
+    #     dir0='qadjust'
+    #     particles1=particle_no
+    #     saved_mat_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles1}particles_{shells_used}shells_center{center}_matrices/{dir0}/{dir0}_{i}.dill"
+    #     saved_mat_path_old=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/matrix_templates/1particles_2shells_centerK_matrices_new/ham_terms/{dir0}/{dir0}_{i}.dill"
+    #     # print(f'q3 kx {v*qvecs[1][0]}')
+        
+    #     # print(f'Checking matrix {dir0}, {i}')
+    #     test_matrix_tensor=load_matrices([saved_mat_path])
+    #     # print(f'test matrix shape {test_matrix_tensor.shape}')
+    #     # print(f'sample test matrix new \n {test_matrix_tensor[12:16,12:16]}')
+    #     # print(f'sample new /npsin \n {test_matrix_tensor[12:16,12:16]/np.sin(theta/2)}')
+    #     test_matrix_old=load_matrices([saved_mat_path_old])
+    #     # print(f'sample test matrix old \n {test_matrix_old[12:16,12:16]}')
+    #     print(f'same? {np.allclose(-test_matrix_tensor/np.sin(theta/2),test_matrix_old)}')
+    # exit()
+
+    # with open(filename,'rb') as f:
+    #     test_matrix_object=dill.load(f)
+    
+    
+    # HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=2)
+    # print(HkA.shape)
+    # print(f'sample {HkA[:4,:4]}')
+
+    # HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=2)
+    # print(HKA2.shape)
+    # print(f'sample old {HKA2[:4,:4]}')
+    #print(np.allclose(HkA,HKA2))
 
 

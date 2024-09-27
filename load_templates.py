@@ -73,5 +73,21 @@ def gen_Hk2(kx,ky,particles_used):
     return H0
 
 
+def gen_Hk2_tensor(kx,ky,particles_used):
+    template_matrix_dir=f'../large_files/tensor/{particles_used}particles_{shells_used}shells_center{center}_matrices'
+    filelist_kx,filelist_ky,filelist_kind,filelist_tun,HK_list=find_template_dirs(template_matrix_dir,particles_used,shells_used,center)
+    non_int_templates,HK_matrix=make_template_matrices(kx_list=filelist_kx,ky_list=filelist_ky,kind_list=filelist_kind,tun_list=filelist_tun,HK_list=HK_list)
+    
+    first=True
+    for pair in non_int_templates:
+        if first:
+            H1=pair[0](kx,ky)*pair[1]
+            first=False
+        else:
+            H1=H1+pair[0](kx,ky)*pair[1]
+    H1=H1+HK_matrix
+    return H1
+
+
 if __name__ == "__main__":
     pass
