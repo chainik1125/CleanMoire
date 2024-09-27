@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import yaml
 import argparse
-
+import torch
 #sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire')
 
 with open('default_config.yaml', 'r') as file:
@@ -26,7 +26,7 @@ UHK_rot=float(config['Urot'])
 UHK_N_p0t0pxp0=float(config['Utau'])
 particle_no=int(config['particles'])
 
-
+precision=torch.complex64
 # t=1
 # v=1
 # v=3*t/2
