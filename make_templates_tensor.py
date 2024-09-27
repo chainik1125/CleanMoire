@@ -1019,7 +1019,7 @@ def HK_rot(state_list,U_rot): #need reverse here too? #ONLY APPLICABLE FOR THREE
 ############################################################################
 
 def make_matrices(basis_state_list,basis_tensor,pauli_dic,kfunction,variable_names,variable_factors,variable_functions,final_matrix_description):
-    if ((qkx_tensor in pauli_dic.values()) or (qky_tensor in pauli_dic.values())):
+    if ((qkx_tensor in pauli_dic.values()) or (qkx in pauli_dic.values()) or (qky in pauli_dic.values()) or (qky_tensor in pauli_dic.values())):
         print('qkx or qky in pauli_dic')
         matrix,_=tpp_from_tensor(state_list=basis_state_list,tensor_list=basis_tensor,pauli_dic=pauli_dic,prefactor=1,track_time=True)
         matrix=matrix/torch.sin(torch.tensor(theta)/2)
@@ -1150,8 +1150,8 @@ if __name__ == "__main__":
     test_tensor_states=make_basis_tensors(shell_basis_dicts)
     
 
-    # test_new,_=tpp_from_tensor(state_list=shell_basis_dicts,tensor_list=test_tensor_states,pauli_dic={0:p0,1:qky_tensor,2:py,3:p0},prefactor=1,track_time=True)
-    # tpp_old=tpp(shell_basis_dicts,{0:p0,1:qky,2:py,3:p0},1)
+    test_new,_=tpp_from_tensor(state_list=shell_basis_dicts,tensor_list=test_tensor_states,pauli_dic={0:p0,1:qky_tensor,2:py,3:p0},prefactor=1,track_time=True)
+    tpp_old=tpp(shell_basis_dicts,{0:p0,1:qky,2:py,3:p0},1)
     
     # print(f'q0 block: {test_new[:4,:4]}')
     # print(f'q0 block old: {tpp_old[:4,:4]}')
@@ -1169,27 +1169,27 @@ if __name__ == "__main__":
     # print(teststate.particle_dic.keys())
     # print([vars(teststate.particle_dic[x]) for x in teststate.particle_dic.keys()])
 
-    dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles}particles_{shells}shells_center{center}_matrices"
-    construct_templates(dir_path=dir_path,term_list_dic=term_list_dic,term_number=1,basis_state_list=shell_basis_dicts,basis_tensor=test_tensor_states,make_all=True,make_int=False)
-    exit()
-
-    # for i in range(4):
-    #     print(f'qdjust index {i}')
-    #     dir0='qadjust'
-    #     particles1=particle_no
-    #     saved_mat_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles1}particles_{shells_used}shells_center{center}_matrices/{dir0}/{dir0}_{i}.dill"
-    #     saved_mat_path_old=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/matrix_templates/1particles_2shells_centerK_matrices_new/ham_terms/{dir0}/{dir0}_{i}.dill"
-    #     # print(f'q3 kx {v*qvecs[1][0]}')
-        
-    #     # print(f'Checking matrix {dir0}, {i}')
-    #     test_matrix_tensor=load_matrices([saved_mat_path])
-    #     # print(f'test matrix shape {test_matrix_tensor.shape}')
-    #     # print(f'sample test matrix new \n {test_matrix_tensor[12:16,12:16]}')
-    #     # print(f'sample new /npsin \n {test_matrix_tensor[12:16,12:16]/np.sin(theta/2)}')
-    #     test_matrix_old=load_matrices([saved_mat_path_old])
-    #     # print(f'sample test matrix old \n {test_matrix_old[12:16,12:16]}')
-    #     print(f'same? {np.allclose(-test_matrix_tensor/np.sin(theta/2),test_matrix_old)}')
+    # dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles}particles_{shells}shells_center{center}_matrices"
+    # construct_templates(dir_path=dir_path,term_list_dic=term_list_dic,term_number=1,basis_state_list=shell_basis_dicts,basis_tensor=test_tensor_states,make_all=True,make_int=False)
     # exit()
+
+    for i in range(16):
+        print(f'qdjust index {i}')
+        dir0='tun'
+        particles1=particle_no
+        saved_mat_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles1}particles_{shells_used}shells_center{center}_matrices/{dir0}/{dir0}_{i}.dill"
+        saved_mat_path_old=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/matrix_templates/1particles_2shells_centerK_matrices_new/ham_terms/{dir0}/{dir0}_{i}.dill"
+        # print(f'q3 kx {v*qvecs[1][0]}')
+        
+        # print(f'Checking matrix {dir0}, {i}')
+        test_matrix_tensor=load_matrices([saved_mat_path])
+        #print(f'test matrix shape {test_matrix_tensor.shape}')
+        #print(f'sample test matrix new \n {test_matrix_tensor[12:16,12:16]}')
+        #print(f'sample new /npsin \n {test_matrix_tensor[12:16,12:16]/np.sin(theta/2)}')
+        test_matrix_old=load_matrices([saved_mat_path_old])
+        #print(f'sample test matrix old \n {test_matrix_old[12:16,12:16]}')
+        print(f'same? {np.allclose(test_matrix_tensor,test_matrix_old)}')
+    exit()
 
     # with open(filename,'rb') as f:
     #     test_matrix_object=dill.load(f)
