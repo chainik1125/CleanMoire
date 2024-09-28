@@ -613,6 +613,8 @@ def tqproj3(sigma):
     else:
         return (0,sigma)
 
+
+
 def find_matching_indices(A, B):
     # A: N x m x d
     # B: N x m x m x d
@@ -701,7 +703,9 @@ def find_matches(result_tensor,basis_tensor):
             state_tensor=result_tensor[state_index,particle_index]
             unique_rows,counts=torch.unique(state_tensor,dim=0,return_counts=True)
             duplicate_rows = unique_rows[counts > 1]
-            if len(duplicate_rows)>0:
+            
+            if len(duplicate_rows)>0:#If there are duplicate rows, then the state is not a valid fermionic state.
+                
                 #Could instead append an mxd tensor of all zeros and then exclude those.
                 continue
             else:
@@ -798,6 +802,42 @@ def time_it(func):
             return func(*args, **kwargs)
     return wrapper
 
+def pauli_action(pauli_dic,basis_tensor):
+    N,n,d=basis_tensor.shape
+    input_tensor=basis_tensor.clone()
+    input_expanded = input_tensor.unsqueeze(2)  # Shape: (N, m, 1, d)
+    input_expanded=input_expanded.repeat(1,1,n,1)
+    input_expanded.transpose_(1,2)
+    res_states=input_expanded.clone()
+    res_coeff=res_states.clone()
+    res_coeff=torch.complex(res_coeff.float(),torch.zeros_like(res_coeff).float())
+    
+    #plus_tensor=torch.zeros((N,n,n,d),dtype=torch.int)
+
+    # for particle_ind in range(n):
+    #     #for key in pauli_dic.keys():
+    #     pmask[:,particle_ind,particle_ind,4]=1
+    #     plus_tensor=plus_tensor+pmask*(pauli_dic[3](res_states)[1])
+    # for particle_ind in range(n):
+    #     res_states[:,particle_ind,:,]
+
+    for particle_ind in range(n):
+        for pauli_dic_key in pauli_dic.keys():
+            if pauli_dic_key<1: 
+                dof_key=pauli_dic_key
+                res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
+                res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]
+            elif pauli_dic_key==1: #The q dof which need to be processed as a pair
+                dof_key=[1,2]
+                res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
+                res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]
+            else:
+                dof_key=pauli_dic_key+1
+                res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
+                res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]        
+    
+    return res_states,res_coeff
+
 @time_it
 def tpp_from_tensor(timed_func,state_list,tensor_list,pauli_dic,prefactor,**kwargs):
     with torch.no_grad():
@@ -820,41 +860,7 @@ def tpp_from_tensor(timed_func,state_list,tensor_list,pauli_dic,prefactor,**kwar
         input_repeated = res_expanded.repeat(1, 1, n, 1)
         input_repeated.transpose_(1,2)
         
-        def pauli_action(pauli_dic,basis_tensor):
-            input_tensor=basis_tensor.clone()
-            input_expanded = input_tensor.unsqueeze(2)  # Shape: (N, m, 1, d)
-            input_expanded=input_expanded.repeat(1,1,n,1)
-            input_expanded.transpose_(1,2)
-            res_states=input_expanded.clone()
-            res_coeff=res_states.clone()
-            res_coeff=torch.complex(res_coeff.float(),torch.zeros_like(res_coeff).float())
-            pmask=torch.zeros((N,n,n,d),dtype=torch.int)
-            
-            #plus_tensor=torch.zeros((N,n,n,d),dtype=torch.int)
 
-            # for particle_ind in range(n):
-            #     #for key in pauli_dic.keys():
-            #     pmask[:,particle_ind,particle_ind,4]=1
-            #     plus_tensor=plus_tensor+pmask*(pauli_dic[3](res_states)[1])
-            # for particle_ind in range(n):
-            #     res_states[:,particle_ind,:,]
-
-            for particle_ind in range(n):
-                for pauli_dic_key in pauli_dic.keys():
-                    if pauli_dic_key<1: 
-                        dof_key=pauli_dic_key
-                        res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
-                        res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]
-                    elif pauli_dic_key==1: #The q dof which need to be processed as a pair
-                        dof_key=[1,2]
-                        res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
-                        res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]
-                    else:
-                        dof_key=pauli_dic_key+1
-                        res_states[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[1]
-                        res_coeff[:,particle_ind,particle_ind,dof_key]=pauli_dic[pauli_dic_key](input_expanded[:,particle_ind,particle_ind,dof_key])[0]        
-            
-            return res_states,res_coeff
         
 
         test_states,test_coeff=pauli_action(pauli_dic,tensor_list_torch)
@@ -942,7 +948,7 @@ def make_basis_tensors(state):
             elif type(dof_value)==tuple:
                 particle_tensor_list.extend(dof_value)
         tensor_list.append(particle_tensor_list)
-    tensor_array=np.array(tensor_list)
+    tensor_array=torch.tensor(tensor_list)
     return tensor_array
 
 from concurrent.futures import ThreadPoolExecutor
@@ -969,11 +975,14 @@ def make_basis_tensors(states):
         all_tensor_lists = list(executor.map(make_state_tensors, states))
         
     # Flatten the results: Combine tensors from all states into one large array
-    return np.array(all_tensor_lists)
+    return torch.tensor(np.array(all_tensor_lists))
 
 
 
 ###################NEED TO REWRITE THE HK_N CODE TO BE IN TENSOR FORM
+
+
+
 def HK_N(state_list,pdic_n,U_N): #need reverse here too? #ONLY APPLICABLE FOR THREE PARTICLES
     H1=np.zeros((len(state_list),len(state_list)),dtype=complex)
     for state in state_list:
@@ -1003,6 +1012,123 @@ def HK_N(state_list,pdic_n,U_N): #need reverse here too? #ONLY APPLICABLE FOR TH
         H1=H1+temp_H
     return H1
 
+def find_matches_HKN(basis_tensor,result_tensor):
+    N,n,d=basis_tensor.shape
+    input_tensor=basis_tensor.clone()
+    input_expanded = input_tensor.unsqueeze(2)  # Shape: (N, m, 1, d)
+    input_expanded=input_expanded.repeat(1,1,n,1)
+    input_expanded=input_expanded.transpose_(1,2)
+    output_tensor=result_tensor.clone()
+
+    unique_rows,duplicate_inverses,duplicate_counts=torch.unique(output_tensor,dim=0,return_counts=True,return_inverse=True)
+    
+    duplicate_rows = unique_rows[duplicate_counts > 1]
+    duplicate_inverses_tensor=duplicate_inverses[duplicate_counts>1]
+    duplicate_counts=duplicate_counts[duplicate_counts>1]
+
+    return duplicate_rows,duplicate_inverses_tensor,duplicate_counts
+
+
+
+    # diff_tensor=input_expanded-output_tensor
+    # sum_row_diffs=torch.abs(diff_tensor).sum(dim=3)
+    # print(sum_row_diffs.shape)
+    # print(f'sum row diffs')
+    # print(sum_row_diffs[:2])
+    # print(torch.where(sum_row_diffs==0))
+    # exit()
+    # zeros=count_zeros(sum_row_diffs)
+    # print(f'zeros shape: {zeros[1].shape}')
+    # exit()
+    # return None
+
+def count_duplicates(matrix):
+    N,n,_,d=matrix.shape
+    #You need to first exclude any states that have more than three rows the same
+    # repeated_tensor=matrix.unsqueeze(1).repeat(1,1,1,n,1)
+    # sub_tensor=repeated_tensor-matrix.unsqueeze(3)
+    #sub_tensor=repeated_tensor-original_matrix.unsqueeze(3)
+    print(f'matrix shape: {matrix.shape}')
+    print(f'unsq matrix shape: {matrix.unsqueeze(-2).shape}')
+    
+    repeated_tensor=matrix.unsqueeze(-2).repeat(1,1,1,n,1)
+    sub_tensor=repeated_tensor-matrix.unsqueeze(-2)
+    
+    sum_tensor=torch.abs(sub_tensor).sum(dim=4)
+    
+    
+    
+    
+    
+    zero_tensor=((sum_tensor==0).sum(dim=3))/(2)#I think you need the two because of the reciprocity.
+    zero_tensor[:,torch.arange(zero_tensor.shape[1]),torch.arange(zero_tensor.shape[2])]+=-1
+
+    print(f'zero tensor shape: {zero_tensor.shape}')
+    print(f'zero tensor:\n {zero_tensor[:2]}')
+    exit()
+    duplicate_tensor=zero_tensor.sum(dim=(1,2))
+    print(f'duplicate tensor shape: {duplicate_tensor.shape}')
+    print(f'duplicate tensor: {duplicate_tensor.sum()}')
+    # print(f'zero tensor shape: {zero_tensor[:2]}')
+    exit()
+
+    return None
+
+def count_duplicates_seq(matrix):
+    U_counts = []
+    N, n, _, _ = matrix.shape
+    for i in range(N):
+        U_counts_i=0
+        for j in range(n):
+            state = matrix[i, j]
+            _, counts = torch.unique(state, dim=0, return_counts=True)
+            duplicates = counts[counts > 1]
+            U_counts_i+=(duplicates.sum() - duplicates.numel()).item() / 2
+        U_counts.append(U_counts_i)
+    return torch.tensor(U_counts)
+
+def count_duplicates_vectorized(matrix):
+    N, n, n_rows, d = matrix.shape
+    result = torch.zeros((N, n), dtype=torch.float32, device=matrix.device)
+    
+    # Reshape to (N*n, n_rows, d) to process each n×d tensor separately
+    reshaped = matrix.reshape(-1, n_rows, d)
+    
+    # Use torch.unique with return_inverse=True for each n×d tensor
+    unique_flat = torch.unique(reshaped.reshape(-1, d), dim=0, return_inverse=True)
+    unique_counts = torch.bincount(unique_flat[1]).reshape(-1, n_rows)
+    
+    # Count duplicates (elements appearing more than once)
+    duplicates = unique_counts[unique_counts > 1]
+    duplicate_counts = (duplicates.sum(dim=1) - duplicates.size(1)) / 2
+    
+    # Reshape result back to (N, n)
+    result = duplicate_counts.reshape(N, n)
+    
+    return result
+    
+    
+
+def HK_N_tensor(basis_state_list,basis_tensor,pdic_n,U_N): #need reverse here too? #ONLY APPLICABLE FOR THREE PARTICLES
+    N,n,d=basis_tensor.shape
+    input_state_tensor=basis_tensor.clone()
+    #input_state_tensor=input_state_tensor.repeat(1,1,n,1)
+    input_state_tensor_cheeky,_=pauli_action({0:p0,1:t0,2:p0,3:p0},basis_tensor)
+    res_states,res_coeffs=pauli_action(pdic_n,basis_tensor)
+
+    duplicate_matrix=count_duplicates_seq(res_states)
+
+
+
+    HK_N=torch.zeros((N,N),dtype=complex)
+
+    HK_N[torch.arange(N),torch.arange(N)]=U_N*duplicate_matrix[torch.arange(N)]
+
+
+
+    return HK_N
+
+
 def HK_rot(state_list,U_rot): #need reverse here too? #ONLY APPLICABLE FOR THREE PARTICLES
     H1=np.zeros((len(state_list),len(state_list)),dtype=complex)
     for state in state_list:
@@ -1015,6 +1141,25 @@ def HK_rot(state_list,U_rot): #need reverse here too? #ONLY APPLICABLE FOR THREE
         position1=(state_list.index(state),state_list.index(state))
         H1[position1]=U_rot*coeff+H1[position1]
     return H1
+
+def HK_rot_tensor(basis_state_list,basis_tensor,U_rot):
+    basis_copy=basis_tensor.clone()
+    N,n,d=basis_tensor.shape
+    total_spins=n
+    up_spins=(basis_tensor[:,:,4]==0).sum(dim=1) #Because it's just 0 or 1!
+    down_spins=(basis_tensor[:,:,4]==1).sum(dim=1) #Because it's just 0 or 1!
+    coeff=up_spins*down_spins
+    coeff=torch.complex(coeff.float(),torch.zeros_like(coeff.float()))
+    HK_rot=torch.zeros((N,N),dtype=torch.complex64)
+    HK_rot[torch.arange(N),torch.arange(N)]=U_rot*coeff
+
+    print(f'basis tensor sample: \n {basis_tensor[:2]}')
+    print(f'HK rot sample: \n {HK_rot.diagonal()[:2]}')
+    
+    return HK_rot
+
+
+
 #Code for making templates
 ############################################################################
 
@@ -1199,13 +1344,21 @@ if __name__ == "__main__":
     #     test_matrix_object=dill.load(f)
     
     
-    HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=4)
-    print(HkA.shape)
-    print(f'sample {HkA[:4,:4]}')
+    # HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=4)
+    # print(HkA.shape)
+    # print(f'sample {HkA[:4,:4]}')
 
-    HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=4)
-    print(HKA2.shape)
-    print(f'sample old {HKA2[:4,:4]}')
-    print(np.allclose(HkA,HKA2))
+    # HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=4)
+    # print(HKA2.shape)
+    # print(f'sample old {HKA2[:4,:4]}')
+    # print(np.allclose(HkA,HKA2))
+
+    #Testing HKN tensor terms:
+
+    
+    #test_HKN=HK_N_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1)
+    test_HKrot=HK_rot_tensor(shell_basis_dicts,test_tensor_states,1)
+    
+    
 
 
