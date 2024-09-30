@@ -1118,9 +1118,9 @@ def HK_N_tensor(basis_state_list,basis_tensor,pdic_n,U_N): #need reverse here to
 
     duplicate_matrix=count_duplicates_seq(res_states)
 
+    duplicate_matrix=torch.complex(duplicate_matrix.float(),torch.zeros_like(duplicate_matrix.float()))
 
-
-    HK_N=torch.zeros((N,N),dtype=complex)
+    HK_N=torch.zeros((N,N),dtype=torch.complex64)
 
     HK_N[torch.arange(N),torch.arange(N)]=U_N*duplicate_matrix[torch.arange(N)]
 
@@ -1153,8 +1153,8 @@ def HK_rot_tensor(basis_state_list,basis_tensor,U_rot):
     HK_rot=torch.zeros((N,N),dtype=torch.complex64)
     HK_rot[torch.arange(N),torch.arange(N)]=U_rot*coeff
 
-    print(f'basis tensor sample: \n {basis_tensor[:2]}')
-    print(f'HK rot sample: \n {HK_rot.diagonal()[:2]}')
+    # print(f'basis tensor sample: \n {basis_tensor[:2]}')
+    # print(f'HK rot sample: \n {HK_rot.diagonal()[:2]}')
     
     return HK_rot
 
@@ -1357,8 +1357,20 @@ if __name__ == "__main__":
 
     
     #test_HKN=HK_N_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1)
-    test_HKrot=HK_rot_tensor(shell_basis_dicts,test_tensor_states,1)
-    
-    
+    #test_HKrot=HK_rot_tensor(shell_basis_dicts,test_tensor_states,1)
+    #test_HKN=HK_N_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1)
 
+    def check_HK_quick(HK_term,samples=5):
+        print(f'is HK diagonal? {np.allclose(HK_term,np.diag(np.diag(HK_term)))}')
+        for _ in range(samples):
+            random_sample=np.random.randint(0,len(shell_basis_dicts))
+            print(f'Input state: {eyepreservation(shell_basis_dicts[random_sample])}, HK coeff: {HK_term[random_sample,random_sample]}')
+        print(f' {samples} non zero terms:')
+        non_zero_terms=torch.nonzero(HK_term)
+        for i in range(samples):
+            random_sample=np.random.randint(0,len(non_zero_terms))
+            print(f'non zero term {i}, state: {eyepreservation(shell_basis_dicts[non_zero_terms[i][0]])}, HK_coeff {HK_term[non_zero_terms[i][0],non_zero_terms[i][1]]}')
+
+    
+    
 
