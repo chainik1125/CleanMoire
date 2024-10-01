@@ -10,13 +10,18 @@ class saved_template_matrix():
         self.final_matrix_description=final_matrix_description
         self.parameterdic=None
         self.term=None
+        self.sparse_matrix=None
         
-    def form_matrix(self):
+    def form_matrix(self,sparse=True):
         #The idea here is that this function will allow me to construct a matrix for arbitrary parameters once I have the template matrix saved
         coeff=1
+        if sparse:
+            matrix_enc=self.sparse_matrix
+        else:
+            matrix_enc=self.matrix
         for i in range(len(self.variable_functions)):
             #print(self.variable_names,[globals()[x] for x in self.variable_names],self.variable_factors)
             arg=globals()[self.variable_names[i]]*self.variable_factors[i]
             coeff=coeff*self.variable_functions[i](arg)
 
-        return self.matrix*coeff
+        return matrix_enc*coeff

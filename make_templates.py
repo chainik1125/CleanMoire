@@ -1660,7 +1660,7 @@ def make_each_matrix(term_list,state_list,dirname,matrix_name,type,term_number):
 
 
 
-def load_matrices(filelist):
+def load_matrices(filelist,make_sparse=True):
     first=True
     for matrix_file in filelist:
         #print(matrix_file)

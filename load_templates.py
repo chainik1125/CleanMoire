@@ -2,9 +2,11 @@ from variables import *
 from setup import *
 from base_functions import *
 from base_classes import saved_template_matrix
-from make_templates import load_matrices
+#from make_templates import load_matrices
 import pickle
+import dill
 import os
+import gc
 
 
 
@@ -35,32 +37,53 @@ def find_template_dirs(parent_dir,particle_no,shells_used,center):
 
     return filelist_kx,filelist_ky,filelist_kind,filelist_tun,HK_list
 
+def load_matrices(filelist,make_sparse=True):
+    first=True
+    for matrix_file in filelist:
+        #print(matrix_file)
+        if first:
+            with open(matrix_file,'rb') as f:
+                combined_matrix_object=dill.load(f)
+                combined_matrix=combined_matrix_object.form_matrix(make_sparse)
+                del combined_matrix_object
+            first=False
+        else:
+            with open(matrix_file,'rb') as f:
+                temp_matrix_object=dill.load(f)
+            temp_matrix=temp_matrix_object.form_matrix(make_sparse)
+            #print(temp_matrix.shape)
+            del temp_matrix_object
+            combined_matrix=combined_matrix+temp_matrix
+            gc.collect()#To remove the overwritten variable if not done already.
 
+    return combined_matrix
 
-def make_template_matrices(kx_list,ky_list,kind_list,tun_list,HK_list):
+def make_template_matrices(kx_list,ky_list,kind_list,tun_list,HK_list,make_sparse=True):
     
-    kx_matrix=load_matrices(kx_list)
-    ky_matrix=load_matrices(ky_list)
-    kind_matrix=load_matrices(kind_list)
-    kind_matrix=kind_matrix+load_matrices(tun_list)
+    kx_matrix=load_matrices(kx_list,make_sparse)
+    ky_matrix=load_matrices(ky_list,make_sparse)
+    kind_matrix=load_matrices(kind_list,make_sparse)
+    kind_matrix=kind_matrix+load_matrices(tun_list,make_sparse)
     first=True
     for hkfile in HK_list:
         if first:
             with open(hkfile, 'rb') as file:
-                HK_matrix=pickle.load(file).form_matrix()
+                print('hk file \n',hkfile)
+                HK_matrix=dill.load(file).form_matrix(make_sparse)
             first=False
         else:
             with open(hkfile, 'rb') as file:
-                HK_matrix=HK_matrix+pickle.load(file).form_matrix()
+                print('hk file \n',hkfile)
+                HK_matrix=HK_matrix+dill.load(file).form_matrix(make_sparse)
     non_int_templates=[(gkxw(w=1),kx_matrix),(gkyw(w=1),ky_matrix),(gw(w=1),kind_matrix)]
     return non_int_templates,HK_matrix
 
 
 
-def gen_Hk2(kx,ky,particles_used):
+def gen_Hk2(kx,ky,particles_used,sparse=False):
     template_matrix_dir=f'../large_files/matrix_templates/{particles_used}particles_{shells_used}shells_center{center}_matrices/ham_terms'
     filelist_kx,filelist_ky,filelist_kind,filelist_tun,HK_list=find_template_dirs(template_matrix_dir,particles_used,shells_used,center)
-    non_int_templates,HK_matrix=make_template_matrices(kx_list=filelist_kx,ky_list=filelist_ky,kind_list=filelist_kind,tun_list=filelist_tun,HK_list=HK_list)
+    non_int_templates,HK_matrix=make_template_matrices(kx_list=filelist_kx,ky_list=filelist_ky,kind_list=filelist_kind,tun_list=filelist_tun,HK_list=HK_list,make_sparse=sparse)
     
     first=True
     for pair in non_int_templates:
@@ -73,10 +96,10 @@ def gen_Hk2(kx,ky,particles_used):
     return H0
 
 
-def gen_Hk2_tensor(kx,ky,particles_used):
+def gen_Hk2_tensor(kx,ky,particles_used,sparse=True):
     template_matrix_dir=f'../large_files/tensor/{particles_used}particles_{shells_used}shells_center{center}_matrices'
     filelist_kx,filelist_ky,filelist_kind,filelist_tun,HK_list=find_template_dirs(template_matrix_dir,particles_used,shells_used,center)
-    non_int_templates,HK_matrix=make_template_matrices(kx_list=filelist_kx,ky_list=filelist_ky,kind_list=filelist_kind,tun_list=filelist_tun,HK_list=HK_list)
+    non_int_templates,HK_matrix=make_template_matrices(kx_list=filelist_kx,ky_list=filelist_ky,kind_list=filelist_kind,tun_list=filelist_tun,HK_list=HK_list,make_sparse=sparse)
     
     first=True
     for pair in non_int_templates:

@@ -15,6 +15,10 @@ import matplotlib.artist as artists
 import matplotlib as mpl
 import matplotlib.cm as cm
 from scipy.interpolate import interp1d
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import eigs,lobpcg,eigsh
+
+
 import time
 
 import pickle
@@ -28,6 +32,7 @@ import gc
 import dill
 import torch
 import copy
+
 
 from base_classes import saved_template_matrix
 import load_templates
@@ -1140,6 +1145,7 @@ def HK_rot(state_list,U_rot): #need reverse here too? #ONLY APPLICABLE FOR THREE
         coeff=up_spins*down_spins
         position1=(state_list.index(state),state_list.index(state))
         H1[position1]=U_rot*coeff+H1[position1]
+    
     return H1
 
 def HK_rot_tensor(basis_state_list,basis_tensor,U_rot):
@@ -1170,7 +1176,9 @@ def make_matrices(basis_state_list,basis_tensor,pauli_dic,kfunction,variable_nam
         matrix=matrix/torch.sin(torch.tensor(theta)/2)
     else:
         matrix,_=tpp_from_tensor(state_list=basis_state_list,tensor_list=basis_tensor,pauli_dic=pauli_dic,prefactor=1,track_time=True)
+    sparse_matrix=csr_matrix(matrix)
     matrix_object=saved_template_matrix(matrix=matrix,kfunction=kfunction,variable_functions=variable_functions,variable_names=variable_names,variable_factors=variable_factors,final_matrix_description=final_matrix_description)
+    matrix_object.sparse_matrix=sparse_matrix
     #for saving
     parameterdic={'particles':particle_no,'shells':shells_used,'center':center,'nonlayer':testnonlayer}#angle shouldn't matter
 
@@ -1185,10 +1193,28 @@ def make_matrices_U(state_list,basis_tensor,type,pdic_n,U,final_matrix_descripti
         matrix_name='UHK_N_'+nstring
         print(f' matrix name: {matrix_name}')
         matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=[matrix_name],variable_factors=[1],final_matrix_description=final_matrix_description)
+        matrix_object.sparse_matrix=csr_matrix(matrix)
     elif type=='HK_rot':
         matrix=HK_rot(state_list=state_list,U_rot=U)
         matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=['UHK_rot'],variable_factors=[1],final_matrix_description=final_matrix_description)
-        
+        matrix_object.sparse_matrix=csr_matrix(matrix)
+    return matrix_object
+
+def make_matrices_U_tensor(state_list,basis_tensor,type,pdic_n,U,final_matrix_description):
+    if type=='HK_N':
+        matrix=HK_N_tensor(basis_state_list=state_list,pdic_n=pdic_n,U_N=U,basis_tensor=basis_tensor)
+        nstring=''
+        for key in sorted(list(pdic_n.keys())):
+            nstring+=f'{pdic_n[key].__name__}'
+        matrix_name='UHK_N_'+nstring
+        print(f' matrix name: {matrix_name}')
+        matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=[matrix_name],variable_factors=[1],final_matrix_description=final_matrix_description)
+        matrix_object.sparse_matrix=csr_matrix(matrix)
+    elif type=='HK_rot':
+        matrix=HK_rot_tensor(basis_state_list=state_list,basis_tensor=basis_tensor,U_rot=U)
+        matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=['UHK_rot'],variable_factors=[1],final_matrix_description=final_matrix_description)
+        matrix_object.sparse_matrix=csr_matrix(matrix)
+    return matrix_object
 
 def make_each_matrix(term_list,basis_state_list,basis_tensor,dirname,matrix_name,type,term_number):
     os.makedirs(dirname, exist_ok=True)
@@ -1204,23 +1230,23 @@ def make_each_matrix(term_list,basis_state_list,basis_tensor,dirname,matrix_name
 
             
         elif (type=='HK_N' or type=='HK_rot'):
-            test_matrix=make_matrices_U(state_list=basis_state_list,basis_tensor=basis_tensor,type=type,pdic_n=term_list[i][0],U=1,
+            test_matrix=make_matrices_U_tensor(state_list=basis_state_list,basis_tensor=basis_tensor,type=type,pdic_n=term_list[i][0],U=1,
                                         final_matrix_description='linear kx non-zero angle')
-            
+        
         end=time.time()
         if len(term_list)>1:
             with open(filename+'_'+f'{i}'+'.dill', 'wb') as file:
-                pickle.dump(test_matrix, file)
+                dill.dump(test_matrix, file)
                 print(filename+'_'+f'{i}'+'.dill')
                 #reconstructed_matrix=test_matrix.form_matrix()                
         else:
             print(filename+'_'+f'{term_number}'+'.dill')
             with open(filename+'_'+f'{term_number}'+'.dill', 'wb') as file:
-                pickle.dump(test_matrix, file)
+                dill.dump(test_matrix, file)
         
         
 
-        reconstructed_matrix=test_matrix.form_matrix()
+        #reconstructed_matrix=test_matrix.form_matrix()
     
 
 def construct_templates(dir_path,term_list_dic,term_number,basis_state_list,basis_tensor,make_all=True,make_int=True):
@@ -1235,7 +1261,13 @@ def construct_templates(dir_path,term_list_dic,term_number,basis_state_list,basi
     
     if make_all:
         for term_key in term_list_dic.keys():
-            make_each_matrix(term_list=term_list_dic[term_key][0],basis_state_list=basis_state_list,basis_tensor=basis_tensor,dirname=f'{dir_path}/{term_list_dic[term_key][1]}',matrix_name=term_list_dic[term_key][1],type=term_list_dic[term_key][2],term_number=None)
+            term_type=term_list_dic[term_key][2]
+            if make_int and (term_type=='HK_N' or term_type=='HK_rot'):
+                make_each_matrix(term_list=term_list_dic[term_key][0],basis_state_list=basis_state_list,basis_tensor=basis_tensor,dirname=f'{dir_path}/{term_list_dic[term_key][1]}',matrix_name=term_list_dic[term_key][1],type=term_list_dic[term_key][2],term_number=None)
+            elif term_type=='nonint':
+                make_each_matrix(term_list=term_list_dic[term_key][0],basis_state_list=basis_state_list,basis_tensor=basis_tensor,dirname=f'{dir_path}/{term_list_dic[term_key][1]}',matrix_name=term_list_dic[term_key][1],type=term_list_dic[term_key][2],term_number=None)
+            else:
+                pass
     else:
         #term matching
         term_counts=[(len(term_list_dic[key][0]),key) for key in term_list_dic.keys()]
@@ -1252,14 +1284,17 @@ def construct_templates(dir_path,term_list_dic,term_number,basis_state_list,basi
 
 #loading templates
 
-def load_matrices(filelist):
+def load_matrices(filelist,sparse=True):
     first=True
     for matrix_file in filelist:
         #print(matrix_file)
+        
         if first:
             with open(matrix_file,'rb') as f:
                 combined_matrix_object=dill.load(f)
-                combined_matrix=combined_matrix_object.form_matrix()
+                print(type(combined_matrix_object))
+                exit()
+                combined_matrix=combined_matrix_object.form_matrix(sparse)
                 del combined_matrix_object
             first=False
         else:
@@ -1319,40 +1354,77 @@ if __name__ == "__main__":
     # print([vars(teststate.particle_dic[x]) for x in teststate.particle_dic.keys()])
 
     # dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles}particles_{shells}shells_center{center}_matrices"
-    # construct_templates(dir_path=dir_path,term_list_dic=term_list_dic,term_number=1,basis_state_list=shell_basis_dicts,basis_tensor=test_tensor_states,make_all=True,make_int=False)
+    # term_list_dic_int={key:term_list_dic[key] for key in term_list_dic.keys() if term_list_dic[key][2] in ['HK_N','HK_rot']}
+    # construct_templates(dir_path=dir_path,term_list_dic=term_list_dic_int,term_number=1,basis_state_list=shell_basis_dicts,basis_tensor=test_tensor_states,make_all=True,make_int=True)
     # exit()
 
-    # for i in range(4):
+    # for i in range(16):
     #     print(f'qdjust index {i}')
-    #     dir0='qadjust'
+    #     dir0='tun'
     #     particles1=particle_no
     #     saved_mat_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles1}particles_{shells_used}shells_center{center}_matrices/{dir0}/{dir0}_{i}.dill"
-    #     saved_mat_path_old=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/matrix_templates/{particles1}particles_2shells_centerK_matrices_new/ham_terms/{dir0}/{dir0}_{i}.dill"
+    #     saved_mat_path_old=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/matrix_templates/{particles1}particles_2shells_centerK_matrices/ham_terms/{dir0}/{dir0}_{i}.dill"
     #     # print(f'q3 kx {v*qvecs[1][0]}')
         
     #     # print(f'Checking matrix {dir0}, {i}')
     #     test_matrix_tensor=load_matrices([saved_mat_path])
+        
+        
+
+
+
+        
+        
     #     #print(f'test matrix shape {test_matrix_tensor.shape}')
     #     #print(f'sample test matrix new \n {test_matrix_tensor[12:16,12:16]}')
     #     #print(f'sample new /npsin \n {test_matrix_tensor[12:16,12:16]/np.sin(theta/2)}')
-    #     test_matrix_old=load_matrices([saved_mat_path_old])
+    #     test_matrix_old=load_matrices([saved_mat_path_old],sparse=False)
     #     #print(f'sample test matrix old \n {test_matrix_old[12:16,12:16]}')
-    #     print(f'same? {np.allclose(test_matrix_tensor.detach().numpy(),test_matrix_old)}')
+    #     print(f'same? {np.allclose(test_matrix_tensor.todense(),test_matrix_old)}')
     # exit()
 
     # with open(filename,'rb') as f:
     #     test_matrix_object=dill.load(f)
+    # hkpath="/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/4particles_2shells_centerK_matrices/HK_N_taux/HK_N_taux_None.dill"
+    # hktest=load_matrices([hkpath],sparse=True)
+    # print(type(hktest))
+    # exit()
+    randomk=np.pi*np.array([np.random.random(),np.random.random()])
+    HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=4,sparse=True)
+    print(HkA.shape)
     
+    #print(f'sample {HkA[:4,:4]}')
+
+    HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=4,sparse=False)
+
+    print(HKA2.shape)
+    #print(f'sample old {HKA2[:4,:4]}')
+    print(f'matrices same? {np.allclose(HkA.todense(),HKA2)}')
+
+    size_bytes = (HkA.data.nbytes + 
+            HkA.indptr.nbytes + 
+            HkA.indices.nbytes)
     
-    # HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=4)
-    # print(HkA.shape)
-    # print(f'sample {HkA[:4,:4]}')
+    # print(f'Sparse size: {size_bytes/1024/1024} MB')
+    # print(f'Dense size: {HKA2.nbytes/1024/1024} MB')
+    # print(type(HkA))
+    # exit()
 
-    # HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=4)
-    # print(HKA2.shape)
-    # print(f'sample old {HKA2[:4,:4]}')
-    # print(np.allclose(HkA,HKA2))
-
+    start=time.time()
+    #eigval_sparse,eigvec_sparse= eigs(HkA, k=16, which='SR', sigma=None)
+    k=8
+    eigval_sparse,eigvec_sparse= eigsh(HkA, k=k, which='SA', sigma=None,maxiter=10000)
+    end=time.time()
+    print(f'Sparse time: {end-start}')
+    start=time.time()
+    eigval_dense,eigvec_dense=np.linalg.eigh(HKA2)
+    end=time.time()
+    print(f'Dense time: {end-start}')
+    print(f'MSE eigval errors: {np.abs((eigval_sparse-eigval_dense[:k]))}')
+    print(f'Exact Eigvals {eigval_dense[:k]}')
+    exit()
+    print(f'MSE Eigvecs? {np.mean(np.sqrt(np.sum((eigvec_sparse-eigvec_dense[:,:k])**2,axis=1)))}')
+    
     #Testing HKN tensor terms:
 
     
