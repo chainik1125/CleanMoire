@@ -4,8 +4,16 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+pyyaml = "*"
+dill = "*"
+torch = "*"
+matplotlib = "*"
+scipy = "*"
+pandas = "*"
+plotly = "*"
+tqdm = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.9"
+python_version = "3.12"

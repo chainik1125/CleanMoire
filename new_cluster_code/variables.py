@@ -5,7 +5,7 @@ import argparse
 import torch
 #sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire')
 
-with open('default_config.yaml', 'r') as file:
+with open('../default_config.yaml', 'r') as file:
     config = yaml.safe_load(file)
 
 # This allows you to modify any of the yaml configs from the command line.
@@ -25,6 +25,7 @@ UHK_N_p0t0p0px=float(config['Uorb'])
 UHK_rot=float(config['Urot'])
 UHK_N_p0t0pxp0=float(config['Utau'])
 particle_no=int(config['particles'])
+kpoints=int(config['kpoints'])
 
 precision=torch.complex64
 # t=1
@@ -39,7 +40,7 @@ theta=(np.pi/180)*thetadeg
 phi=2*np.pi/3
 center='K'
 shells_used=2
-kpoints=3
+kpoints=kpoints
 particle_no=particle_no
 
 #Bernevig params
@@ -48,7 +49,7 @@ w1=0.11#0.11
 w0=0.7*w1
 Kmag=1.703
 UHK_N_p0t0p0px=UHK_N_p0t0p0px
-Utau=0
+Utau=UHK_N_p0t0pxp0
 Uff=0
 Umu=0
 mu=(UHK_N_p0t0p0px+Utau)/2

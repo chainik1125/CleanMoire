@@ -703,7 +703,7 @@ def find_matches(result_tensor,basis_tensor):
     #Can insert prep code here like finding the row sums etc to cut down the number of states you need to compare.
 
     N,n,n,d=result_tensor.shape
-    for state_index in range(N):
+    for state_index in tqdm(range(N)):
         for particle_index in range(n):
             state_tensor=result_tensor[state_index,particle_index]
             unique_rows,counts=torch.unique(state_tensor,dim=0,return_counts=True)
@@ -734,6 +734,123 @@ def find_matches(result_tensor,basis_tensor):
                 permutation_sum=((np.abs(zero_indices[:,1]-zero_indices[:,2]))/2).sum()
 
                 matched_indices.append((state_index,particle_index,matched_basis_indices,permutation_sum))
+                # print(f'result state tensor')
+                # print(state_tensor)
+                # print(f'comparison basis tensor:')
+                # print(basis_expanded[15])
+                # print(f'difference tensor:')
+                # print(row_diffs[15])
+                # sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
+                # print(f'sum row diffs')
+                # print(sum_row_diffs[15])
+                # print(f'zero counts')
+                # zeros=count_zeros(sum_row_diffs)
+                # print(zeros)
+                # print(f'inital result state')
+                # print(state_tensor)
+                # print(f'claimed matching basis state')
+                # print(basis_tensor[zeros[0][0]])
+                # print(f'zero indices: {torch.nonzero(sum_row_diffs[zeros]==0)}')
+                
+                
+
+                # print(f'zero indices: {zero_indices.shape}')
+                
+                # print(f'permutation: {zero_indices[:,1].sum()-zero_indices[:,2].sum()}')
+                
+                                    
+            
+    return matched_indices
+
+import torch.multiprocessing as mp
+
+def process_chunk(chunk_start, chunk_end, result_tensor, basis_tensor):
+    matched_indices = []
+    N, n, _, d = result_tensor.shape
+    
+    for state_index in range(chunk_start, chunk_end):
+        for particle_index in range(n):
+            state_tensor = result_tensor[state_index, particle_index]
+            unique_rows, counts = torch.unique(state_tensor, dim=0, return_counts=True)
+            duplicate_rows = unique_rows[counts > 1]
+            
+            if len(duplicate_rows) > 0:
+                continue
+            else:
+                basis_expanded = basis_tensor.unsqueeze(1)
+                state_tensor = state_tensor.unsqueeze(0).unsqueeze(2)
+                row_diffs = state_tensor - basis_expanded
+                row_diffs = row_diffs.transpose(1, 2)
+
+                sum_row_diffs = torch.abs(row_diffs).sum(dim=3)
+                zeros = count_zeros(sum_row_diffs)
+                matched_basis_indices = [z.item() for z in zeros[0]]
+                
+                zero_indices = torch.nonzero(sum_row_diffs[zeros] == 0)
+                permutation_sum = ((torch.abs(zero_indices[:, 1] - zero_indices[:, 2])) / 2).sum()
+
+                matched_indices.append((state_index, particle_index, matched_basis_indices, permutation_sum))
+    
+    return matched_indices
+
+def find_matches_parallel(result_tensor, basis_tensor, num_processes=4):
+    N = result_tensor.shape[0]
+    chunk_size = N // num_processes
+    
+    pool = mp.Pool(processes=num_processes)
+    chunks = [(i * chunk_size, (i + 1) * chunk_size if i < num_processes - 1 else N) for i in range(num_processes)]
+    
+    results = []
+    for chunk_start, chunk_end in chunks:
+        results.append(pool.apply_async(process_chunk, (chunk_start, chunk_end, result_tensor, basis_tensor)))
+    
+    matched_indices = []
+    for result in tqdm(results):
+        matched_indices.extend(result.get())
+    
+    pool.close()
+    pool.join()
+    
+    return matched_indices
+
+
+def find_matches2(result_tensor,basis_tensor):
+    matched_indices=[]
+    start_indices=[]
+    #Can insert prep code here like finding the row sums etc to cut down the number of states you need to compare.
+
+    N,n,n,d=result_tensor.shape
+    #for state_index in tqdm(range(N)):
+    for particle_index in range(n):
+        state_tensors=result_tensor[:,particle_index,:,:]
+        unique_rows,counts=torch.unique(state_tensor,dim=0,return_counts=True)
+        duplicate_rows = unique_rows[counts > 1]
+        
+        if len(duplicate_rows)>0:#If there are duplicate rows, then the state is not a valid fermionic state.
+            
+            #Could instead append an mxd tensor of all zeros and then exclude those.
+            continue
+        else:
+            basis_expanded = basis_tensor.unsqueeze(1)  # Shape becomes (N, 1, m, d)
+            state_tensor=state_tensor.unsqueeze(0).unsqueeze(2)
+            row_diffs=state_tensor-basis_expanded
+            row_diffs=row_diffs.transpose(1,2)
+
+            sum_row_diffs=torch.abs(row_diffs).sum(dim=3)
+            # print(f'sum row diffs')
+            # print(sum_row_diffs[15])
+            # exit()
+            zeros=count_zeros(sum_row_diffs)
+            matched_basis_indices=[z.item() for z in zeros[0]]
+            
+            zero_indices=torch.nonzero(sum_row_diffs[zeros]==0)
+            
+            #zero_indices_dims= #non-zero index, #particle index, #non zero particle index
+            index_pairs=zero_indices[:,np.arange(zero_indices.shape[1])]
+
+            permutation_sum=((np.abs(zero_indices[:,1]-zero_indices[:,2]))/2).sum()
+
+            matched_indices.append((state_index,particle_index,matched_basis_indices,permutation_sum))
                 # print(f'result state tensor')
                 # print(state_tensor)
                 # print(f'comparison basis tensor:')
@@ -872,6 +989,39 @@ def tpp_from_tensor(timed_func,state_list,tensor_list,pauli_dic,prefactor,**kwar
 
         matching_indices=timed_func(find_matches,"find_matches",test_states,tensor_list_torch)
 
+        res_H=timed_func(make_H_from_indices,"make_H_from_indices",N,matching_indices,test_coeff,pauli_dic)
+    return res_H
+
+@time_it
+def tpp_from_tensor_par(timed_func,state_list,tensor_list,pauli_dic,prefactor,**kwargs):
+    with torch.no_grad():
+        N,n,d=tensor_list.shape
+        px_tensor=torch.zeros((N,n,n,d),dtype=torch.int)
+        
+        for particle_ind in range(n):
+            #would just add other pauli actions here if need be.
+            px_tensor[:,particle_ind,particle_ind,3]=1
+
+        
+        tensor_list_torch=torch.tensor(tensor_list)
+
+
+        res_tensor=tensor_list_torch.clone()
+        
+        res_expanded = res_tensor.unsqueeze(2)  # Shape: (N, m, 1, d)
+        
+        # Repeat A_expanded along the new dimension to get shape (N, m, m, d)
+        input_repeated = res_expanded.repeat(1, 1, n, 1)
+        input_repeated.transpose_(1,2)
+        
+
+        
+
+        test_states,test_coeff=pauli_action(pauli_dic,tensor_list_torch)
+
+        #matching_indices=timed_func(find_matches,"find_matches",test_states,tensor_list_torch)
+        matching_indices=find_matches_parallel(test_states, tensor_list_torch, num_processes=4)
+        #matching_indices=find_matches_vectorized(test_states, tensor_list_torch)
         res_H=timed_func(make_H_from_indices,"make_H_from_indices",N,matching_indices,test_coeff,pauli_dic)
     return res_H
 
@@ -1179,12 +1329,17 @@ def make_matrices(basis_state_list,basis_tensor,pauli_dic,kfunction,variable_nam
     sparse_matrix=csr_matrix(matrix)
     matrix_object=saved_template_matrix(matrix=matrix,kfunction=kfunction,variable_functions=variable_functions,variable_names=variable_names,variable_factors=variable_factors,final_matrix_description=final_matrix_description)
     matrix_object.sparse_matrix=sparse_matrix
+    #to save space
+    save_space=True
+    if save_space:
+        matrix_object.matrix=None
     #for saving
     parameterdic={'particles':particle_no,'shells':shells_used,'center':center,'nonlayer':testnonlayer}#angle shouldn't matter
 
     return matrix_object
 
 def make_matrices_U(state_list,basis_tensor,type,pdic_n,U,final_matrix_description):
+    save_space=True
     if type=='HK_N':
         matrix=HK_N(state_list=state_list,pdic_n=pdic_n,U_N=U)
         nstring=''
@@ -1194,13 +1349,18 @@ def make_matrices_U(state_list,basis_tensor,type,pdic_n,U,final_matrix_descripti
         print(f' matrix name: {matrix_name}')
         matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=[matrix_name],variable_factors=[1],final_matrix_description=final_matrix_description)
         matrix_object.sparse_matrix=csr_matrix(matrix)
+        if save_space:
+            matrix_object.matrix=None
     elif type=='HK_rot':
         matrix=HK_rot(state_list=state_list,U_rot=U)
         matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=['UHK_rot'],variable_factors=[1],final_matrix_description=final_matrix_description)
         matrix_object.sparse_matrix=csr_matrix(matrix)
+        if save_space:
+            matrix_object.matrix=None
     return matrix_object
 
 def make_matrices_U_tensor(state_list,basis_tensor,type,pdic_n,U,final_matrix_description):
+    save_space=True
     if type=='HK_N':
         matrix=HK_N_tensor(basis_state_list=state_list,pdic_n=pdic_n,U_N=U,basis_tensor=basis_tensor)
         nstring=''
@@ -1210,10 +1370,14 @@ def make_matrices_U_tensor(state_list,basis_tensor,type,pdic_n,U,final_matrix_de
         print(f' matrix name: {matrix_name}')
         matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=[matrix_name],variable_factors=[1],final_matrix_description=final_matrix_description)
         matrix_object.sparse_matrix=csr_matrix(matrix)
+        if save_space:
+            matrix_object.matrix=None
     elif type=='HK_rot':
         matrix=HK_rot_tensor(basis_state_list=state_list,basis_tensor=basis_tensor,U_rot=U)
         matrix_object=saved_template_matrix(matrix=matrix,kfunction=g0,variable_functions=[g00],variable_names=['UHK_rot'],variable_factors=[1],final_matrix_description=final_matrix_description)
         matrix_object.sparse_matrix=csr_matrix(matrix)
+        if save_space:
+            matrix_object.matrix=None
     return matrix_object
 
 def make_each_matrix(term_list,basis_state_list,basis_tensor,dirname,matrix_name,type,term_number):
@@ -1234,6 +1398,7 @@ def make_each_matrix(term_list,basis_state_list,basis_tensor,dirname,matrix_name
                                         final_matrix_description='linear kx non-zero angle')
         
         end=time.time()
+        print(f'time taken to make matrix {term_list[i]}: {end-start}')
         if len(term_list)>1:
             with open(filename+'_'+f'{i}'+'.dill', 'wb') as file:
                 dill.dump(test_matrix, file)
@@ -1329,8 +1494,15 @@ if __name__ == "__main__":
     print(f'Number of basis states: {len(shell_basis_dicts)}')
     test_tensor_states=make_basis_tensors(shell_basis_dicts)
     
-
-    # test_new,_=tpp_from_tensor(state_list=shell_basis_dicts,tensor_list=test_tensor_states,pauli_dic={0:px,1:t3_plus_tensor,2:p0,3:p0},prefactor=1,track_time=True)
+    mp.set_start_method('spawn')
+    start=time.time()
+    test_new,_=tpp_from_tensor(state_list=shell_basis_dicts,tensor_list=test_tensor_states,pauli_dic={0:px,1:t0,2:p0,3:px},prefactor=1,track_time=True)
+    end=time.time()
+    old_time=end-start
+    start=time.time()
+    test_par,_=tpp_from_tensor_par(state_list=shell_basis_dicts,tensor_list=test_tensor_states,pauli_dic={0:px,1:t0,2:p0,3:px},prefactor=1,track_time=True)
+    end=time.time()
+    new_time=end-start
     # tpp_old=tpp(shell_basis_dicts,{0:px,1:t3_plus,2:p0,3:p0},1)
     
     # print(f'q0 block: {test_new[:4,12:16]}')
@@ -1341,8 +1513,8 @@ if __name__ == "__main__":
 
     # # print(f' q1 block: \n {test_new[12:16,:4]}')
     # # print(f'q1 block old: \n  {tpp_old[12:16,12:16]}')
-
-    # print(f'same? {np.allclose(test_new,tpp_old)}')
+    print(f'old time: {old_time}, new time {new_time}')
+    print(f'same? {np.allclose(test_new,test_par)}')
     # print(f'type tpp tensor {type(test_new)}')
     # exit()
 
@@ -1353,9 +1525,13 @@ if __name__ == "__main__":
     # print(teststate.particle_dic.keys())
     # print([vars(teststate.particle_dic[x]) for x in teststate.particle_dic.keys()])
 
-    # dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particles}particles_{shells}shells_center{center}_matrices"
-    # term_list_dic_int={key:term_list_dic[key] for key in term_list_dic.keys() if term_list_dic[key][2] in ['HK_N','HK_rot']}
-    # construct_templates(dir_path=dir_path,term_list_dic=term_list_dic_int,term_number=1,basis_state_list=shell_basis_dicts,basis_tensor=test_tensor_states,make_all=True,make_int=True)
+    # dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/test/{particles}particles_{shells}shells_center{center}_matrices"
+    # #term_list_dic_int={key:term_list_dic[key] for key in term_list_dic.keys() if term_list_dic[key][2] in ['HK_N','HK_rot']}
+    # sub_dir='kx'
+    # term_list_dic_term={key:term_list_dic[key] for key in term_list_dic.keys() if term_list_dic[key][1] in [sub_dir]}
+
+
+    # construct_templates(dir_path=dir_path,term_list_dic=term_list_dic_term,term_number=1,basis_state_list=shell_basis_dicts,basis_tensor=test_tensor_states,make_all=False,make_int=True)
     # exit()
 
     # for i in range(16):
@@ -1389,41 +1565,43 @@ if __name__ == "__main__":
     # hktest=load_matrices([hkpath],sparse=True)
     # print(type(hktest))
     # exit()
-    randomk=np.pi*np.array([np.random.random(),np.random.random()])
-    HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=4,sparse=True)
-    print(HkA.shape)
+
+    # randomk=np.pi*np.array([np.random.random(),np.random.random()])
+    # HkA=load_templates.gen_Hk2_tensor(kx=A[0],ky=A[1],particles_used=2,sparse=True)
+    # print(HkA.shape)
     
-    #print(f'sample {HkA[:4,:4]}')
+    # #print(f'sample {HkA[:4,:4]}')
 
-    HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=4,sparse=False)
+    # HKA2=load_templates.gen_Hk2(kx=A[0],ky=A[1],particles_used=2,sparse=False)
 
-    print(HKA2.shape)
-    #print(f'sample old {HKA2[:4,:4]}')
-    print(f'matrices same? {np.allclose(HkA.todense(),HKA2)}')
+    # print(HKA2.shape)
+    # #print(f'sample old {HKA2[:4,:4]}')
+    # print(f'matrices same? {np.allclose(HkA.todense(),HKA2)}')
 
-    size_bytes = (HkA.data.nbytes + 
-            HkA.indptr.nbytes + 
-            HkA.indices.nbytes)
+    # size_bytes = (HkA.data.nbytes + 
+    #         HkA.indptr.nbytes + 
+    #         HkA.indices.nbytes)
     
     # print(f'Sparse size: {size_bytes/1024/1024} MB')
     # print(f'Dense size: {HKA2.nbytes/1024/1024} MB')
     # print(type(HkA))
     # exit()
 
-    start=time.time()
-    #eigval_sparse,eigvec_sparse= eigs(HkA, k=16, which='SR', sigma=None)
-    k=8
-    eigval_sparse,eigvec_sparse= eigsh(HkA, k=k, which='SA', sigma=None,maxiter=10000)
-    end=time.time()
-    print(f'Sparse time: {end-start}')
-    start=time.time()
-    eigval_dense,eigvec_dense=np.linalg.eigh(HKA2)
-    end=time.time()
-    print(f'Dense time: {end-start}')
-    print(f'MSE eigval errors: {np.abs((eigval_sparse-eigval_dense[:k]))}')
-    print(f'Exact Eigvals {eigval_dense[:k]}')
-    exit()
-    print(f'MSE Eigvecs? {np.mean(np.sqrt(np.sum((eigvec_sparse-eigvec_dense[:,:k])**2,axis=1)))}')
+    # start=time.time()
+    # #eigval_sparse,eigvec_sparse= eigs(HkA, k=16, which='SR', sigma=None)
+    # k=8
+    # eigval_sparse,eigvec_sparse= eigsh(HkA, k=k, which='SA', sigma=None)
+    # end=time.time()
+    # print(f'Sparse time: {end-start}')
+    # start=time.time()
+    # eigval_dense,eigvec_dense=np.linalg.eigh(HKA2)
+    # end=time.time()
+    # print(f'Dense time: {end-start}')
+    # print(f'MSE eigval errors: {np.abs((np.sort(eigval_sparse)-eigval_dense[:k]))}')
+    # print(f'Exact Eigvals {eigval_dense[:k]}')
+    # print(f'Approx Eigvals {eigval_sparse}')
+    # exit()
+    # print(f'MSE Eigvecs? {np.mean(np.sqrt(np.sum((eigvec_sparse-eigvec_dense[:,:k])**2,axis=1)))}')
     
     #Testing HKN tensor terms:
 
@@ -1432,16 +1610,16 @@ if __name__ == "__main__":
     #test_HKrot=HK_rot_tensor(shell_basis_dicts,test_tensor_states,1)
     #test_HKN=HK_N_tensor(shell_basis_dicts,test_tensor_states,{0:p0,1:t0,2:p0,3:px},1)
 
-    def check_HK_quick(HK_term,samples=5):
-        print(f'is HK diagonal? {np.allclose(HK_term,np.diag(np.diag(HK_term)))}')
-        for _ in range(samples):
-            random_sample=np.random.randint(0,len(shell_basis_dicts))
-            print(f'Input state: {eyepreservation(shell_basis_dicts[random_sample])}, HK coeff: {HK_term[random_sample,random_sample]}')
-        print(f' {samples} non zero terms:')
-        non_zero_terms=torch.nonzero(HK_term)
-        for i in range(samples):
-            random_sample=np.random.randint(0,len(non_zero_terms))
-            print(f'non zero term {i}, state: {eyepreservation(shell_basis_dicts[non_zero_terms[i][0]])}, HK_coeff {HK_term[non_zero_terms[i][0],non_zero_terms[i][1]]}')
+    # def check_HK_quick(HK_term,samples=5):
+    #     print(f'is HK diagonal? {np.allclose(HK_term,np.diag(np.diag(HK_term)))}')
+    #     for _ in range(samples):
+    #         random_sample=np.random.randint(0,len(shell_basis_dicts))
+    #         print(f'Input state: {eyepreservation(shell_basis_dicts[random_sample])}, HK coeff: {HK_term[random_sample,random_sample]}')
+    #     print(f' {samples} non zero terms:')
+    #     non_zero_terms=torch.nonzero(HK_term)
+    #     for i in range(samples):
+    #         random_sample=np.random.randint(0,len(non_zero_terms))
+    #         print(f'non zero term {i}, state: {eyepreservation(shell_basis_dicts[non_zero_terms[i][0]])}, HK_coeff {HK_term[non_zero_terms[i][0],non_zero_terms[i][1]]}')
 
     
     

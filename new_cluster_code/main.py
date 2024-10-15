@@ -9,6 +9,11 @@ import time
 from variables import *
 from setup import *
 from base_functions import *
+from base_classes import saved_template_matrix
+import make_templates
+import load_templates
+import pathdiag
+import plot_save
 
 
 sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire')
@@ -17,11 +22,33 @@ sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire
 
 
 
-from base_classes import saved_template_matrix
-import make_templates
-import load_templates
 
 
+
+start='KM'
+end ='GammaM'
+UHK=UHK_N_p0t0p0px
+
+
+#pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire[start],vars_dic_Moire[end]],kpoints=10,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
+#Save path files
+UHK=UHK_N_p0t0p0px
+U_tau=UHK_N_p0t0pxp0
+kp=kpoints
+print(f'kpoints')
+pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['A'],vars_dic_Moire['B']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
+pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['B'],vars_dic_Moire['C']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
+pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['C'],vars_dic_Moire['D']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
+pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['D'],vars_dic_Moire['A']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
+
+#plot path
+
+directory = os.fsencode(pathdata_folder_local+f"/mu{mu}UHK{UHK}UHKrot{UHK_rot}Utau{Utau}kp{kp}theta{round(thetadeg,2)}")
+dstr=pathdata_folder_local+f"/mu{mu}UHK{UHK}UHKrot{UHK_rot}Utau{Utau}kp{kp}theta{round(thetadeg,2)}"
+params=f'UHK{UHK}'
+plot_save.chained_path_plot(path_lists=[[A,B,C,D,A]],kpoints=str(kpoints),directory=directory,dstr=dstr,mu_shift=mu,params=params,variable=f'{particle_no}particle',theta=f'theta{thetadeg}',linesplotted=16,plotcutoff=16)
+
+exit()
 #print(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Load YAML files

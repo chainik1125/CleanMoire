@@ -1,0 +1,14 @@
+---
+cluster_array: 1
+thetadeg: 0.7
+Uorb: 0
+Urot: 0
+Utau: 0
+particles: 4
+
+# For making matrices
+sub_dir: None
+term_number: 1
+
+#For spectra
+kpoints: 20
