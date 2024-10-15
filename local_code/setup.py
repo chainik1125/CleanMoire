@@ -25,17 +25,23 @@ saved_exc_minus_folder_cluster=f'/Users/dmitrymanning-coe/Documents/Research/Bar
 cluster_root=f'/projects/illinois/eng/physics/bbradlyn/dmitry2/Moire/large_files'
 local_root=f'/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files'
 
-def path_string(particles_exc:int=8,particles_gs:int=8)->str:
-    first_level=f'/exc_{particles_exc}_{particles_gs}_gs_{shells_used}_shells_center_{center}'
+def path_string(pathtype:str,clusterarg:bool=False,particles_exc:int=8,particles_gs:int=8)->str:
+    if pathtype=='pathdata':
+        first_level=f'/spectra/pathdata/{particles_exc}_particles_{shells_used}_shells_center_{center}'
+    elif pathtype=='band_plots':
+        first_level=f'/spectra/band_plots/{particles_exc}_exc_{particles_gs}_gs_{shells_used}_shells_center_{center}'
     second_level=f'/mu{mu}UHK{UHK_N_p0t0p0px}UHKrot{UHK_rot}Utau{Utau}kp{kpoints}theta{round(theta*180/np.pi,2)}'
-
-    return first_level+second_level
+    if clusterarg:
+        return cluster_root+first_level+second_level
+    else:
+        return local_root+first_level+second_level
     
         
     
-def spectra_path(pathtype:str,cluster:bool=False,particles_exc:int=8,particles_gs:int=8)->str:
-    if cluster:
-        return cluster_root+'/'+pathtype+path_string(particles_exc,particles_gs)
-    else:
-        return local_root+'/'+pathtype+path_string(particles_exc,particles_gs)
+# def spectra_path(pathtype:str,cluster:bool=False,particles_exc:int=8,particles_gs:int=8)->str:
+#     par_string=local_root+path_string(pathtype,particles_exc,particles_gs)
+#     if cluster:
+#         return cluster_root+'/'+pathtype+par_string
+#     else:
+#         return local_root+'/'+pathtype+par_string
 

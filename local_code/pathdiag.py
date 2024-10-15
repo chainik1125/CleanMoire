@@ -100,7 +100,7 @@ def chained_path_plot_link(path_list,kpoints,generate_Hk,UHK,mu,Umu,Utau,Uff,nam
         deg_values=[]
         
         for j in x_values:
-            ham_k_exc=generate_Hk(kx=j[0],ky=j[1],particles_used=particle_exc)
+            ham_k_exc=generate_Hk(kx=j[0],ky=j[1],particles_used=particles_exc)
             #ham_k_gs=generate_Hk(kx=j[0],ky=j[1],particles_used=particle_gs)
             
             #ham_k_onemore=generate_Hk(kx=j[0],ky=j[1],particles_used=particle_no+1)
@@ -120,12 +120,14 @@ def chained_path_plot_link(path_list,kpoints,generate_Hk,UHK,mu,Umu,Utau,Uff,nam
             kgrid_dic[(j[0],j[1])]=(list(energies),degcounter(energies,acc=acc0))
             progress_bar.update(1)
     progress_bar.close()
-    dirname=spectra_path('pathdata',clusterarg,particle_gs,particle_exc)#pathdata_folder_exc_minus+f"/mu{mu}UHK{UHK}UHKrot{UHK_rot}Utau{Utau}kp{kpoints}theta{round(theta*180/np.pi,2)}"
+    dirname=path_string('pathdata',clusterarg,particles_exc,particles_gs)#pathdata_folder_exc_minus+f"/mu{mu}UHK{UHK}UHKrot{UHK_rot}Utau{Utau}kp{kpoints}theta{round(theta*180/np.pi,2)}"
     filename=f"{names_reversed_var[str(path_list[0])]}to{names_reversed_var[str(path_list[1])]}"
     os.makedirs(dirname, exist_ok=True)
     filename=f'{dirname}/{filename}'
+    
     with open(filename+'.dill', 'wb') as file:
         dill.dump(kgrid_dic, file)
+    print(f'saved to:\n {filename}')
 
 
 

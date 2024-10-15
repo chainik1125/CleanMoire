@@ -5,8 +5,8 @@ Uorb: 0
 Urot: 0
 Utau: 0
 particles: 8
-partices_gs: 8
-cluster_arg: False
+particles_gs: 8
+cluster: False
 
 # For making matrices
 sub_dir: None

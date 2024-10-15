@@ -41,14 +41,14 @@ kp=kpoints
 
 
 
-get_path=False
+get_path=True
 if get_path:
     pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['A'],vars_dic_Moire['B']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
     pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['B'],vars_dic_Moire['C']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
     pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['C'],vars_dic_Moire['D']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
     pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['D'],vars_dic_Moire['A']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
 
-plot_path=True
+plot_path=False
 if plot_path:
     dstr=pathdata_folder_exc_minus+f"/mu{mu}UHK{UHK}UHKrot{UHK_rot}Utau{Utau}kp{kp}theta{round(thetadeg,2)}"
     directory = os.fsencode(dstr)

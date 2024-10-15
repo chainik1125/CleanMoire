@@ -25,7 +25,7 @@ UHK_N_p0t0p0px=float(config['Uorb'])
 UHK_rot=float(config['Urot'])
 UHK_N_p0t0pxp0=float(config['Utau'])
 particle_no=int(config['particles'])
-particle_gs=int(config['particles_exc'])
+particles_gs=int(config['particles_gs'])
 kpoints=int(config['kpoints'])
 clusterarg=bool(config['cluster'])
 
@@ -43,8 +43,8 @@ phi=2*np.pi/3
 center='K'
 shells_used=2
 kpoints=kpoints
-particle_exc=particle_no
-particle_gs=particle_gs
+particles_exc=particle_no
+particles_gs=particles_gs
 
 #Bernevig params
 v=5.944#t=v=5.944?
