@@ -1,0 +1,2 @@
+ArrayTaskID    thetadeg    Uorb    Urot
+1              0.7         0       0

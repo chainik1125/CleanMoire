@@ -1,0 +1,40 @@
+ArrayTaskID    sub_dir    term_number
+1              kx         1
+2              kx         2
+3              ky         1
+4              ky         2
+5              qadjust    1
+6              qadjust    2
+7              qadjust    3
+8              qadjust    4
+9              tun        1
+10             tun        2
+11             tun        3
+12             tun        4
+13             tun        5
+14             tun        6
+15             tun        7
+16             tun        8
+17             tun        9
+18             tun        10
+19             tun        11
+20             tun        12
+21             tun        13
+22             tun        14
+23             tun        15
+24             tun        16
+25             HK_orb     1
+26             HK_orb     2
+27             HK_rot     1
+
+
+
+
+
+
+
+
+
+
+
+
