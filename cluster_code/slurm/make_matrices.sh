@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=ni_tensor
 #SBATCH --ntasks=1
-#SBATCH --time=01:30:00
+#SBATCH --time=04:00:00
 #SBATCH --partition=IllinoisComputes
 #SBATCH --account=bbradlyn-ic
 #SBATCH --mail-user=dmanningcoe@gmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --array=27-27
+#SBATCH --array=9-10
 #SBATCH --begin=now
 module load anaconda/2023-Mar/3
 module load cuda/11.7

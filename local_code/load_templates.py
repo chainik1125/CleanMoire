@@ -98,7 +98,7 @@ def gen_Hk2(kx,ky,particles_used,sparse=True):
 
 
 def gen_Hk2_tensor(kx,ky,particles_used,sparse=True):
-    if particles_used>2:
+    if particles_used>0:
         sparse=True
     else:
         sparse=False

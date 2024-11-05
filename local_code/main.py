@@ -16,6 +16,7 @@ import pathdiag
 import plot_save
 
 
+
 sys.path.append('/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire')
 
 
@@ -39,21 +40,37 @@ kp=kpoints
 #excited_particles=7
 #gs_particles=8
 
+# cluster_dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/{particle_no}particles_{shells_used}shells_center{center}_matrices/ham_terms2"
+# #local_dir_path=f"/Users/dmitrymanning-coe/Documents/Research/Barry Bradlyn/Moire/CleanMoire/large_files/tensor/test/{particles}particles_{shells}shells_center{center}_matrices"
+# #term_list_dic_int={key:term_list_dic[key] for key in term_list_dic.keys() if term_list_dic[key][2] in ['HK_N','HK_rot']}
+# # sub_dir=config['sub_dir']
+# # term_number=int(config['term_number'])
+
+# #term_list_dic_term={key:term_list_dic[key] for key in term_list_dic.keys() if term_list_dic[key][1] in [sub_dir]}
+
+# import make_templates_tensor_cluster as make_templates
 
 
-get_path=True
+# make_templates.construct_templates(dir_path=cluster_dir_path,term_list_dic=term_list_dic,term_number=0,basis_state_list=shell_basis,basis_tensor=test_tensor_states,make_all=True,make_int=True)
+# exit()
+
+# exit()
+
+get_path=False
 if get_path:
     pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['A'],vars_dic_Moire['B']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
     pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['B'],vars_dic_Moire['C']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
     pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['C'],vars_dic_Moire['D']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
     pathdiag.chained_path_plot_link(path_list=[vars_dic_Moire['D'],vars_dic_Moire['A']],kpoints=kpoints,generate_Hk=load_templates.gen_Hk2_tensor,UHK=UHK,mu=mu,Utau=Utau,Umu=Umu,Uff=Uff,names_reversed_var=names_reversed_Moire)
 
-plot_path=False
+plot_path=True
 if plot_path:
-    dstr=pathdata_folder_exc_minus+f"/mu{mu}UHK{UHK}UHKrot{UHK_rot}Utau{Utau}kp{kp}theta{round(thetadeg,2)}"
-    directory = os.fsencode(dstr)
+    dstr_exc=path_string('pathdata',clusterarg=clusterarg,particles_exc=particles_exc,particles_gs=particles_exc)
+    directory_exc = os.fsencode(dstr_exc)
+    dstr_gs=path_string('pathdata',clusterarg=clusterarg,particles_exc=particles_gs,particles_gs=particles_gs)
+    directory_gs = os.fsencode(dstr_gs)
     params=f'UHK{UHK}'
-    plot_save.chained_path_plot(path_lists=[[A,B,C,D,A]],kpoints=str(kpoints),directory=directory,dstr=dstr,mu_shift=mu,params=params,variable=f'{particle_no}particle',theta=f'theta{thetadeg}',linesplotted=16,plotcutoff=16)
+    plot_save.chained_path_plot(path_lists=[[A,B,C,D,A]],kpoints=str(kpoints),directory_exc=directory_exc,directory_gs=directory_gs,mu_shift=mu,params=params,variable=f'{particle_no}particle',theta=f'theta{thetadeg}',linesplotted=16,plotcutoff=16)
 
 exit()
 #print(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

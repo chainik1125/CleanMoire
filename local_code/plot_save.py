@@ -72,8 +72,8 @@ def file_names(directory,contains,kpoints,variable,parameterv,theta):#omegas
 # print(test_filenams)
 # exit()
 
-def group_parts(directory,dstr,start_string,end_string,kpoints,parts,variable,params,theta):
-    files_list=file_names(directory=directory,dstr=dstr,contains=start_string+'to'+end_string,kpoints=kpoints,variable=variable,parameterv=params,theta=theta)
+def group_parts(directory,start_string,end_string,kpoints,parts,variable,params,theta):
+    files_list=file_names(directory=directory,contains=start_string+'to'+end_string,kpoints=kpoints,variable=variable,parameterv=params,theta=theta)
     
     values=[]
     for x in range(1,int(parts)+1):
@@ -95,7 +95,7 @@ def group_parts(directory,dstr,start_string,end_string,kpoints,parts,variable,pa
     #You don't want to flatten completely. You want to add the rows in one
     return values
 
-def group_parts_dic(directory,dstr,start_string,end_string,kpoints,params,variable,theta):
+def group_parts_dic(directory,start_string,end_string,kpoints,params,variable,theta):
     files_list=file_names(directory=directory,contains=start_string+'to'+end_string,kpoints=kpoints,variable=variable,parameterv=params,theta=theta)
     #test_filenams=file_names(directory=directory2,contains="GammatoX",kpoints="500",variable="datadic")
     print(files_list)
@@ -112,6 +112,7 @@ def group_parts_dic(directory,dstr,start_string,end_string,kpoints,params,variab
     #     for xv in files_list:
     #         if f'part{x}of{parts}' in xv:
     #temp=json_open(dstr+'/'+files_list[0])
+    dstr=os.fsdecode(directory)
     with open(dstr+'/'+files_list[0],'rb') as f:
         temp=dill.load(f)
     for key in temp.keys():
@@ -208,7 +209,7 @@ linescolored=16
 #linesplotted=8
 linesinlabel=16
 #plotcutoff=8
-def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directory,dstr,deg_list,mu_shift,params,variable,theta,linesplotted,plotcutoff):
+def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directory_exc,directory_gs,deg_list,mu_shift,params,variable,theta,linesplotted,plotcutoff):
     deg_dict={}
 
     for i in range(0,len(path_list)-1):
@@ -216,13 +217,21 @@ def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directo
         start_string=var_file_reversed_Moire[tuple(list_temp[0])]
 
         end_string=var_file_reversed_Moire[tuple(list_temp[1])]
-        grouped_dic=group_parts_dic(directory=directory,dstr=dstr,start_string=start_string,end_string=end_string,kpoints=kpoints,params=params,variable=variable,theta=theta)
+
+        grouped_dic_exc=group_parts_dic(directory=directory_exc,start_string=start_string,end_string=end_string,kpoints=kpoints,params=params,variable=variable,theta=theta)
+        grouped_dic_gs=group_parts_dic(directory=directory_gs,start_string=start_string,end_string=end_string,kpoints=kpoints,params=params,variable=variable,theta=theta)
         
-        x_values,y_values,deg_values=grids_from_dic(stitched_dic=grouped_dic,start=tuple(list_temp[0]),end=tuple(list_temp[1]))
+        x_values_exc,y_values_exc,deg_values_exc=grids_from_dic(stitched_dic=grouped_dic_exc,start=tuple(list_temp[0]),end=tuple(list_temp[1]))
+        x_values_gs,y_values_gs,deg_values_gs=grids_from_dic(stitched_dic=grouped_dic_gs,start=tuple(list_temp[0]),end=tuple(list_temp[1]))
+
+        #check that the x values are the same
+        if x_values_exc!=x_values_gs:
+            raise ValueError('x values are not the same for excited and ground state energies - check the paths, the kpoints')
         
 
         eig_dict_loop={}
-        ymin=np.array([[y[m] for m in range(plotcutoff)] for y in y_values])
+        #ymin=np.array([[y[m] for m in range(plotcutoff)] for y in y_values])
+        ymin_gs=np.array([[y[m] for m in range(plotcutoff)] for y in y_values_gs])
         # print(ymin.shape)
         
         # ymin=np.min(ymin,axis=1)
@@ -236,10 +245,13 @@ def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directo
             
             #eig_dict_loop[k]=([y[k]-mu_shift-sorted(y)[0] for y in y_values],[j[k] for j in deg_values])
             # print(np.array(y_values).shape)
-            suby = y_values - np.min(y_values, axis=1, keepdims=True)
-            # print(suby.shape)
-            # print(np.min(suby, axis=1))
-            # exit()
+            
+            
+            
+            suby = np.array(y_values_exc) - np.min(y_values_gs, axis=1, keepdims=True)
+            
+            
+            
             # print(f'y values no subtraction: {[y[k] for y in y_values]}')
             # print(f'y values subtraction: {[y[k]-ymin[k] for y in y_values]}')
             # exit()
@@ -247,9 +259,9 @@ def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directo
             # print(suby[:,0])
             # exit()
             
-            #eig_dict_loop[band]=(list(suby[:,band]),[j[band] for j in deg_values])#[y[k]-y[0] for y in y_values]
-            eig_dict_loop[band]=([y[band] for y in y_values],[j[band] for j in deg_values])
-            deg_list=list(set(list(set(deg_list))+list(set([j[band] for j in deg_values]))))
+            eig_dict_loop[band]=(list(suby[:,band]),[j[band] for j in deg_values_exc])#[y[k]-y[0] for y in y_values]
+            #eig_dict_loop[band]=([y[band] for y in y_values_exc],[j[band] for j in deg_values])
+            deg_list=list(set(list(set(deg_list))+list(set([j[band] for j in deg_values_exc]))))
         # for j in eig_dict_loop.keys():
         for j in eig_dict_loop.keys():#The end-point sets how many lines you plot. [4,5]
             # annot = axs[i].annotate("", xy=(0,0), xytext=(20,20),textcoords="offset points",
@@ -272,7 +284,7 @@ def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directo
             # print(eig_dict_loop[j][0][0])
             # print(x_values[0])
             if single:
-                axs.scatter(x_values,eig_dict_loop[j][0],s=1.0,c=colorsmap)#facecolor=degcmap(eig_dict_loop[j][1])
+                axs.scatter(x_values_exc,eig_dict_loop[j][0],s=1.0,c=colorsmap)#facecolor=degcmap(eig_dict_loop[j][1])
                 #axs.plot(x_values, eig_dict_loop[j][0], c=colorsmap, linewidth=0.5, marker='.', markersize=0.3)
                 #axs.set_title(f"{var_dict_reversed[tuple(list_temp[0])]} to {var_dict_reversed[tuple(list_temp[1])]}",fontsize=tickfontsize)
                 axs.set_xticks([-0.1])
@@ -288,7 +300,7 @@ def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directo
                         axs[i+start_path_count].set_xticks([-0.1,1.2])
                         axs[i+start_path_count].set_xticklabels([var_dict_reversed_Moire[tuple(list_temp[0])]+'|',var_dict_reversed_Moire[tuple(list_temp[1])]+'|'],fontsize=tickfontsize)#+ '\n'+ var_greek_dict[tuple(list_temp[0])], + '\n'+ var_greek_dict[tuple(list_temp[1])]
             else:
-                axs[i+start_path_count].scatter(x_values,eig_dict_loop[j][0],s=1.0,c=colorsmap)#facecolor=degcmap(eig_dict_loop[j][1])
+                axs[i+start_path_count].scatter(x_values_exc,eig_dict_loop[j][0],s=1.0,c=colorsmap)#facecolor=degcmap(eig_dict_loop[j][1])
                 #axs[i+start_path_count].plot(x_values, eig_dict_loop[j][0], c=colorsmap, linewidth=0.5, marker='.', markersize=0.3)
                 #axs[i+start_path_count].set_title(f"{var_dict_reversed[tuple(list_temp[0])]} to {var_dict_reversed[tuple(list_temp[1])]}",fontsize=tickfontsize)
                 axs[i+start_path_count].set_xticks([0])
@@ -298,7 +310,10 @@ def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directo
                 axs[i+start_path_count].set_xticklabels([var_dict_reversed_Moire[tuple(list_temp[0])]+'\n'+ var_greek_dict_Moire[tuple(list_temp[0])]],fontsize=15)#+ 
                 axs[i+start_path_count].tick_params(axis='x', length=0)
                 axs[i+start_path_count].tick_params(axis='y', labelsize=ylabelsize)
-                axs[i+start_path_count].set_ylim([-0.01, 0.4])
+                ylim=True
+                if ylim:
+                    axs[i+start_path_count].set_ylim([-0.01, 0.4])
+                
                 if i==len(path_list)-2:
                     if np.equal(path_list[i+1],A).all():
                         # print(np.equal(path_list[i+1],A).all())
@@ -326,7 +341,7 @@ def chained_path_plot_link(path_list,start_path_count,axs,single,kpoints,directo
     # axs[3].set_xticks([0])
     return deg_list
 
-def chained_path_plot(path_lists,kpoints,directory,dstr,mu_shift,params,variable,theta,linesplotted,plotcutoff):
+def chained_path_plot(path_lists,kpoints,directory_exc,directory_gs,mu_shift,params,variable,theta,linesplotted,plotcutoff):
     UHK=UHK_N_p0t0p0px
     flatten_paths = [item for sublist in path_lists for item in sublist]
     deg_list=[]
@@ -335,7 +350,7 @@ def chained_path_plot(path_lists,kpoints,directory,dstr,mu_shift,params,variable
         fig, axs = plt.subplots(1,len(flatten_paths)-len(path_lists),sharey=True,figsize=(13,9))
         start_path_count=0
         for path_list in path_lists:
-            deg_list=chained_path_plot_link(path_list=path_list,axs=axs,start_path_count=start_path_count,kpoints=kpoints,single=single,directory=directory,dstr=dstr,deg_list=deg_list,mu_shift=mu_shift,params=params,variable=variable,theta=theta,linesplotted=linesplotted,plotcutoff=plotcutoff)
+            deg_list=chained_path_plot_link(path_list=path_list,axs=axs,start_path_count=start_path_count,kpoints=kpoints,single=single,directory_exc=directory_exc,directory_gs=directory_gs,deg_list=deg_list,mu_shift=mu_shift,params=params,variable=variable,theta=theta,linesplotted=linesplotted,plotcutoff=plotcutoff)
             start_path_count=start_path_count+len(path_list)-1
     else:
         single=True
@@ -345,7 +360,7 @@ def chained_path_plot(path_lists,kpoints,directory,dstr,mu_shift,params,variable
             chained_path_plot_link(path_list=path_list,axs=axs,start_path_count=start_path_count,kpoints=kpoints,single=single,directory=directory,dstr=dstr,mu_shift=mu_shift,params=params,variable=variable,theta=theta,linesplotted=linesplotted,plotcutoff=plotcutoff)
             start_path_count=0
     
-    ylabel=r'$E_{{{0}}}$'.format(particle_no-1)+r'$(\mathbf{k})$'+r'-$E_{{{0},GS}}$'.format(particle_no)+r'$(\mathbf{k})$'
+    ylabel=r'$E_{{{0}}}$'.format(particles_exc)+r'$(\mathbf{k})$'+r'-$E_{{{0},GS}}$'.format(particles_gs)+r'$(\mathbf{k})$'
     #axs[0].set_ylabel(r'$E_{{{0}}}$'.format(particle_no)+r'$(\mathbf{k})/t$',fontsize=labelfontsize)
     axs[0].set_ylabel(ylabel,fontsize=labelfontsize)
     #axs[0].set_ylabel(r'$(E_{4}(\mathbf{{k}})-E_{4,GS}(\mathbf{{k}}))/t$',fontsize=labelfontsize)
@@ -364,14 +379,14 @@ def chained_path_plot(path_lists,kpoints,directory,dstr,mu_shift,params,variable
         w1string=str(round(w0/w1,2))
     else:
         w1string='0'
-    fig.suptitle(r'Four particle $\theta=$'+f'{angle}'+r'$^{\circ}$'+',  '+r'$U_{HK}=$'+f'{UHK}'+', '+r'$U_{HKrot}=$'+f'{UHK_rot}'+', '+r'$v_{f}=$'+f'{v}'+r'$eV A^{-1}$'+', '+r'$|K|=$'+f'{Kmag}'+', '+r'$w_1$='+f'{w1}'+r'$eV$'+', '+r'$w_0$='+f'{w1string}'+r'$w_1$'+f' shells={shells_used}', fontsize=16)
+    fig.suptitle(r'$\theta=$'+f'{angle}'+r'$^{\circ}$'+',  '+r'$U_{HK}=$'+f'{UHK}'+', '+r'$U_{HKrot}=$'+f'{UHK_rot}'+', '+r'$v_{f}=$'+f'{v}'+r'$eV A^{-1}$'+', '+r'$|K|=$'+f'{Kmag}'+', '+r'$w_1$='+f'{w1}'+r'$eV$'+', '+r'$w_0$='+f'{w1string}'+r'$w_1$'+f' shells={shells_used}', fontsize=16)
     
     #plt.show()
-    dirname=saved_exc_minus_folder+f'/mu{int(mu_shift)}UHK{UHK}UHKrot{UHK_rot}Utau{Utau}kp{kpoints}theta{round(thetadeg,2)}'
+    dirname=path_string('band_plots',clusterarg,particles_exc,particles_gs)
     os.makedirs(dirname,exist_ok=True)
     print(f'save file name \n {dirname}/first{linesplotted}')
     plt.savefig(dirname+f'/first{linesplotted}',dpi=800,bbox_inches='tight')
-    cluster=True
+    cluster=True#clusterarg
     if not cluster:
         plt.show()
 
